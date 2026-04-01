@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+/* Class-based dark mode — .dark on <html> activates dark: variants */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-primary: oklch(0.3706 0.2318 264.2);
+  --color-primary-dark: oklch(0.1413 0.0884 264.2);
+  --color-ghost-white: oklch(0.9865 0.0066 286.28);
+  --color-secondary: oklch(0.6041 0.2164 258.12);
+  --color-secondary-green: oklch(0.8952 0.1426 177.21);
+}
+@font-face {
+  font-family: "DMSans";
+  src: url("../fonts/DMSans.ttf") format("truetype");
+  font-weight: 100 900;
+  font-display: swap;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "DMSans-Italic";
+  src: url("../fonts/DMSans-Italic.ttf") format("truetype");
+  font-weight: 100 900;
+  font-display: swap;
+  font-style: normal;
+}
+@font-face {
+  font-family: "DMSerif";
+  src: url("../fonts/DMSerif.ttf") format("truetype");
+  font-weight: 100 900;
+  font-display: swap;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "DMSerif-Italic";
+  src: url("../fonts/DMSerif-Italic.ttf") format("truetype");
+  font-weight: 100 900;
+  font-display: swap;
+  font-style: normal;
+}
