@@ -1,3 +1,9 @@
-CLAUDE.local.md
 node_modules/
+.next/
+out/
+build/
+.env
+.env.*
+.env*.local
 .pnpm-debug.log
+CLAUDE.local.md
