@@ -7,16 +7,16 @@
  * Zustand dashboard store. Returns the same BasicAnalysisResult shape but
  * with page_1 and page_2 data scoped to the selected time window.
  *
- * Filters:
- *   filterYear       — restrict to a specific calendar year (e.g. 2025)
- *   filterMonth      — restrict to a specific month (0=Jan … 11=Dec)
- *   filterDayOfWeek  — restrict to a specific weekday (0=Sun … 6=Sat)
+ * Filters (multiselect — empty array = no filter):
+ *   filterYears      — restrict to specific calendar years (e.g. [2025, 2026])
+ *   filterMonths     — restrict to specific months (0=Jan … 11=Dec)
+ *   filterDaysOfWeek — restrict to specific weekdays (0=Sun … 6=Sat)
  *
- * Combinations: Year + Month shows Jan 2025, Year alone shows all of 2025,
- * Month alone (e.g. January) shows every January across all years.
+ * Combinations: [2025] + [0] shows all Januaries in 2025.
+ * Multiple years: [2025, 2026] shows data from either year.
  *
- * Page 3 (Forecast) is intentionally excluded — forecasts always use the
- * full dataset.
+ * Page 3 (Forecast) and Cockpit are intentionally excluded — they always
+ * use the full dataset.
  *
  * filterMonthlyTrend — exported utility for Int/Adv pages that have
  * pre-aggregated monthly data (no row-level detail table).
@@ -51,21 +51,21 @@ export function toDate(dateStr: string): Date {
 /**
  * Filters any array of objects with a `month` field ("YYYY-MM") to the
  * active year/month filter window. Returns the array unmodified when
- * both filters are null (= all data).
+ * both filter arrays are empty (= all data).
  */
 export function filterMonthlyTrend<T extends { month: string }>(
   data: T[],
-  filterYear:  number | null,
-  filterMonth: number | null,
+  filterYears:  number[],
+  filterMonths: number[],
 ): T[] {
-  if (filterYear === null && filterMonth === null) return data;
+  if (filterYears.length === 0 && filterMonths.length === 0) return data;
 
   return data.filter((point) => {
     const [yearStr, monthStr] = point.month.split("-");
     const year     = parseInt(yearStr,  10);
     const monthNum = parseInt(monthStr, 10) - 1; // convert 1-based to 0-based
-    if (filterYear  !== null && year     !== filterYear)  return false;
-    if (filterMonth !== null && monthNum !== filterMonth) return false;
+    if (filterYears.length  > 0 && !filterYears.includes(year))     return false;
+    if (filterMonths.length > 0 && !filterMonths.includes(monthNum)) return false;
     return true;
   });
 }
@@ -98,19 +98,19 @@ function derivePage1Kpis(rows: DetailRow[]): Page1Kpis {
 function derivePage1Charts(
   rows: DetailRow[],
   originalCharts: Page1Charts,
-  filterYear:  number | null,
-  filterMonth: number | null,
+  filterYears:  number[],
+  filterMonths: number[],
 ): Page1Charts {
   const sales_trend = originalCharts.sales_trend.filter((p) => {
     const d = toDate(p.date);
-    if (filterYear  !== null && d.getFullYear() !== filterYear)  return false;
-    if (filterMonth !== null && d.getMonth()    !== filterMonth) return false;
+    if (filterYears.length  > 0 && !filterYears.includes(d.getFullYear()))  return false;
+    if (filterMonths.length > 0 && !filterMonths.includes(d.getMonth()))    return false;
     return true;
   });
   const profit_trend = originalCharts.profit_trend.filter((p) => {
     const d = toDate(p.date);
-    if (filterYear  !== null && d.getFullYear() !== filterYear)  return false;
-    if (filterMonth !== null && d.getMonth()    !== filterMonth) return false;
+    if (filterYears.length  > 0 && !filterYears.includes(d.getFullYear()))  return false;
+    if (filterMonths.length > 0 && !filterMonths.includes(d.getMonth()))    return false;
     return true;
   });
 
@@ -212,10 +212,10 @@ export interface FilteredResult extends BasicAnalysisResult {
 
 export function useFilteredData(): FilteredResult {
   const analysis = useBasicAnalysis();
-  const { filterYear, filterMonth, filterDayOfWeek } = useDashboardStore();
+  const { filterYears, filterMonths, filterDaysOfWeek } = useDashboardStore();
 
   return useMemo(() => {
-    const isFiltered = filterYear !== null || filterMonth !== null || filterDayOfWeek !== null;
+    const isFiltered = filterYears.length > 0 || filterMonths.length > 0 || filterDaysOfWeek.length > 0;
 
     // No filters — return full dataset
     if (!isFiltered) {
@@ -229,16 +229,16 @@ export function useFilteredData(): FilteredResult {
     // Filter the detail table by year, month, and/or day of week
     const filteredRows = analysis.page_1.detail_table.filter((r) => {
       const d = toDate(r.date);
-      if (filterYear      !== null && d.getFullYear() !== filterYear)      return false;
-      if (filterMonth     !== null && d.getMonth()    !== filterMonth)     return false;
-      if (filterDayOfWeek !== null && d.getDay()      !== filterDayOfWeek) return false;
+      if (filterYears.length      > 0 && !filterYears.includes(d.getFullYear()))      return false;
+      if (filterMonths.length     > 0 && !filterMonths.includes(d.getMonth()))        return false;
+      if (filterDaysOfWeek.length > 0 && !filterDaysOfWeek.includes(d.getDay()))      return false;
       return true;
     });
 
     const page_1: Page1 = {
       ...analysis.page_1,
       kpis:         derivePage1Kpis(filteredRows),
-      charts:       derivePage1Charts(filteredRows, analysis.page_1.charts, filterYear, filterMonth),
+      charts:       derivePage1Charts(filteredRows, analysis.page_1.charts, filterYears, filterMonths),
       detail_table: filteredRows,
     };
 
@@ -257,5 +257,5 @@ export function useFilteredData(): FilteredResult {
       isFiltered: true,
       filteredCount: filteredRows.length,
     };
-  }, [analysis, filterYear, filterMonth, filterDayOfWeek]);
+  }, [analysis, filterYears, filterMonths, filterDaysOfWeek]);
 }

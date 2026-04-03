@@ -10,13 +10,14 @@ export type DashboardTier = "basic" | "intermediate" | "advanced";
 export type DevIndustry = "retail";
 
 interface DashboardState {
-  // ── Date filters ──────────────────────────────────────────────────────────
-  filterYear:         number | null; // e.g. 2025, null = all years
-  filterMonth:        number | null; // 0=Jan … 11=Dec, null = all months
-  filterDayOfWeek:    number | null; // 0=Sun … 6=Sat, null = all days
-  setFilterYear:      (year: number | null) => void;
-  setFilterMonth:     (month: number | null) => void;
-  setFilterDayOfWeek: (day: number | null) => void;
+  // ── Date filters (multiselect — empty array = no filter) ──────────────────
+  filterYears:        number[]; // e.g. [2025], [] = all years
+  filterMonths:       number[]; // 0=Jan … 11=Dec, [] = all months
+  filterDaysOfWeek:   number[]; // 0=Sun … 6=Sat, [] = all days
+  toggleFilterYear:      (year: number) => void;
+  toggleFilterMonth:     (month: number) => void;
+  toggleFilterDayOfWeek: (day: number) => void;
+  clearFilters: () => void;
 
   // ── Layout ─────────────────────────────────────────────────────────────────
   sideRailExpanded: boolean;
@@ -35,15 +36,21 @@ interface DashboardState {
   toggleTheme: () => void;
 }
 
+// Toggle helper: adds value if absent, removes if present
+function toggle(arr: number[], value: number): number[] {
+  return arr.includes(value) ? arr.filter((v) => v !== value) : [...arr, value];
+}
+
 export const useDashboardStore = create<DashboardState>()(
   persist(
     (set) => ({
-      filterYear:         null,
-      filterMonth:        null,
-      filterDayOfWeek:    null,
-      setFilterYear:      (filterYear)      => set({ filterYear }),
-      setFilterMonth:     (filterMonth)     => set({ filterMonth }),
-      setFilterDayOfWeek: (filterDayOfWeek) => set({ filterDayOfWeek }),
+      filterYears:        [],
+      filterMonths:       [],
+      filterDaysOfWeek:   [],
+      toggleFilterYear:      (year)  => set((s) => ({ filterYears:      toggle(s.filterYears,      year)  })),
+      toggleFilterMonth:     (month) => set((s) => ({ filterMonths:     toggle(s.filterMonths,     month) })),
+      toggleFilterDayOfWeek: (day)   => set((s) => ({ filterDaysOfWeek: toggle(s.filterDaysOfWeek, day)   })),
+      clearFilters: () => set({ filterYears: [], filterMonths: [], filterDaysOfWeek: [] }),
 
       sideRailExpanded: true,
       toggleSideRail: () =>

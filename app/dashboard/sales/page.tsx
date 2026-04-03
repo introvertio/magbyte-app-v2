@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell,
@@ -18,27 +18,6 @@ import {
 import type { IntermediateAnalysisResult } from "@/app/types/intermediateAnalysis";
 import type { AdvancedAnalysisResult } from "@/app/types/advancedAnalysis";
 import type { BasicAnalysisResult } from "@/app/types/basicAnalysis";
-import type { PeriodFilter } from "@/app/stores/dashboard/useDashboardStore";
-
-// ── Date axis tick formatter ──────────────────────────────────────────────────
-// Formats the XAxis labels on the basic-tier charts (which have raw daily dates
-// like "2025-01-04"). Int/Adv use pre-computed `month_short` ("Jan", "Feb") so
-// they don't need this.
-
-function formatDateTick(v: string, period: PeriodFilter): string {
-  const d = new Date(v);
-  if (isNaN(d.getTime())) return String(v).slice(0, 6);
-  if (period === "week") {
-    // Show weekday name: Mon, Tue, Wed…
-    return d.toLocaleDateString("en", { weekday: "short" });
-  }
-  if (period === "month" || period === "custom") {
-    // Show "1 Jan", "15 Feb" etc.
-    return d.toLocaleDateString("en", { day: "numeric", month: "short" });
-  }
-  // all / year: "Jan", "Feb" — add year suffix only when the data spans multiple years
-  return d.toLocaleDateString("en", { month: "short" });
-}
 
 // ── Profit/Operating waterfall types ─────────────────────────────────────────
 
@@ -48,13 +27,48 @@ interface WaterfallStep {
   type: "start" | "decrease" | "end";
 }
 
+// ── Compute deduplicated monthly x-axis ticks from daily sales data ───────────
+// Daily data like "2025-01-04" repeats the same month label many times.
+// This returns one tick per month (the first date of each month in the dataset).
+
+function useMonthlyTicks(data: Array<{ date: string }>): string[] {
+  return useMemo(() => {
+    const seen = new Set<string>();
+    return data
+      .filter((p) => {
+        const key = p.date.slice(0, 7); // "YYYY-MM"
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map((p) => p.date);
+  }, [data]);
+}
+
+// Formats a monthly tick — always show short month name;
+// append 2-digit year only when data spans multiple years.
+function monthTickFormatter(dateStr: string, multiYear: boolean): string {
+  const d = new Date(dateStr.length === 7 ? `${dateStr}-01` : dateStr);
+  if (isNaN(d.getTime())) return dateStr.slice(0, 7);
+  const month = d.toLocaleDateString("en", { month: "short" });
+  if (multiYear) {
+    const yr = d.toLocaleDateString("en", { year: "2-digit" });
+    return `${month} '${yr}`;
+  }
+  return month;
+}
+
 // ── Basic: transaction log (uses filtered hook for period-filter support) ─────
 
 function BasicDetailTable(): React.ReactElement {
   const { page_1 } = useFilteredData();
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 15;
-  const rows = page_1.detail_table;
+  // Sort rows by date descending so most recent transactions appear first
+  const rows = useMemo(
+    () => [...page_1.detail_table].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+    [page_1.detail_table],
+  );
   const totalPages = Math.ceil(rows.length / PAGE_SIZE);
   const slice = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   return (
@@ -103,10 +117,20 @@ function BasicDetailTable(): React.ReactElement {
 
 // ── Tier content sections ─────────────────────────────────────────────────────
 
-function BasicContent({ data, period }: { data: BasicAnalysisResult["page_1"]; period: PeriodFilter }): React.ReactElement {
+function BasicContent({ data }: { data: BasicAnalysisResult["page_1"] }): React.ReactElement {
   const { kpis, charts } = data;
-  // Tick formatter adapts axis labels to the active filter period
-  const tickFmt = (v: string) => formatDateTick(v, period);
+  const metadata = useTierMetadata();
+
+  // One tick per month — fixes repeated month labels on the x-axis
+  const salesTicks  = useMonthlyTicks(charts.sales_trend);
+  const profitTicks = useMonthlyTicks(charts.profit_trend);
+
+  // Show year suffix when data spans multiple calendar years
+  const startYear = new Date(metadata.date_range.start).getFullYear();
+  const endYear   = new Date(metadata.date_range.end).getFullYear();
+  const multiYear = startYear !== endYear;
+  const tickFmt   = (v: string) => monthTickFormatter(v, multiYear);
+
   return (
     <>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
@@ -124,7 +148,7 @@ function BasicContent({ data, period }: { data: BasicAnalysisResult["page_1"]; p
             <AreaChart data={charts.sales_trend} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
               <GradDefs />
               <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
-              <XAxis dataKey="date" tickFormatter={tickFmt} tick={TICK} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+              <XAxis dataKey="date" ticks={salesTicks} tickFormatter={tickFmt} tick={TICK} axisLine={false} tickLine={false} />
               <YAxis tickFormatter={formatNaira} tick={TICK} axisLine={false} tickLine={false} width={62} />
               <Tooltip content={<DashTooltip valueFormatter={formatNaira} />} />
               <Area type="monotone" dataKey="sales" stroke="#001BB7" strokeWidth={2.5} fill={`url(#${GRAD.blueArea})`} dot={false} name="Sales" />
@@ -136,7 +160,7 @@ function BasicContent({ data, period }: { data: BasicAnalysisResult["page_1"]; p
             <LineChart data={charts.profit_trend} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
               <GradDefs />
               <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
-              <XAxis dataKey="date" tickFormatter={tickFmt} tick={TICK} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+              <XAxis dataKey="date" ticks={profitTicks} tickFormatter={tickFmt} tick={TICK} axisLine={false} tickLine={false} />
               <YAxis tickFormatter={formatNaira} tick={TICK} axisLine={false} tickLine={false} width={62} />
               <Tooltip content={<DashTooltip valueFormatter={formatNaira} />} />
               <Line type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={2.5} dot={false} name="Profit" activeDot={{ r: 5, fill: "#10b981", stroke: "#fff", strokeWidth: 2 }} />
@@ -181,17 +205,13 @@ function BasicContent({ data, period }: { data: BasicAnalysisResult["page_1"]; p
   );
 }
 
-function IntContent({ data, period, dataEndDate }: {
-  data: IntermediateAnalysisResult["page_1"];
-  period: PeriodFilter;
-  dataEndDate: string | null;
-}): React.ReactElement {
+function IntContent({ data }: { data: IntermediateAnalysisResult["page_1"] }): React.ReactElement {
   const { kpis, charts } = data;
-  const { customDateStart, customDateEnd } = useDashboardStore();
+  const { filterYears, filterMonths } = useDashboardStore();
 
-  // Filter monthly trend arrays to the active period
-  const salesTrend  = filterMonthlyTrend(charts.sales_trend,  period, dataEndDate, customDateStart, customDateEnd);
-  const profitTrend = filterMonthlyTrend(charts.profit_trend, period, dataEndDate, customDateStart, customDateEnd);
+  // Filter monthly trend arrays to the active year/month selection
+  const salesTrend  = filterMonthlyTrend(charts.sales_trend,  filterYears, filterMonths);
+  const profitTrend = filterMonthlyTrend(charts.profit_trend, filterYears, filterMonths);
 
   return (
     <>
@@ -276,23 +296,19 @@ function IntContent({ data, period, dataEndDate }: {
   );
 }
 
-function AdvContent({ data, period, dataEndDate }: {
-  data: AdvancedAnalysisResult["page_1"];
-  period: PeriodFilter;
-  dataEndDate: string | null;
-}): React.ReactElement {
+function AdvContent({ data }: { data: AdvancedAnalysisResult["page_1"] }): React.ReactElement {
   const { kpis, charts } = data;
-  const { customDateStart, customDateEnd } = useDashboardStore();
+  const { filterYears, filterMonths } = useDashboardStore();
   // Advanced tier revenue/profit values are in millions (float)
   const fromM = (v: number): string => formatNaira(v * 1_000_000);
 
   const revenueTrend = filterMonthlyTrend(
     charts.revenue_trend as Array<{ month: string; month_short: string; revenue: number }>,
-    period, dataEndDate, customDateStart, customDateEnd,
+    filterYears, filterMonths,
   );
   const profitTrend = filterMonthlyTrend(
     charts.profit_trend as Array<{ month: string; month_short: string; profit: number }>,
-    period, dataEndDate, customDateStart, customDateEnd,
+    filterYears, filterMonths,
   );
 
   // Waterfall chart data
@@ -402,21 +418,13 @@ function AdvContent({ data, period, dataEndDate }: {
   );
 }
 
-// ── Filter banner ─────────────────────────────────────────────────────────────
+// ── Filter active notice ──────────────────────────────────────────────────────
 
-function FilterBanner({ period, cutoffDate, count }: {
-  period: PeriodFilter;
-  cutoffDate: string | null;
-  count?: number;
-}): React.ReactElement | null {
-  if (period === "all" || !cutoffDate) return null;
-  const fmtDate = (iso: string) =>
-    new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+function FilterNotice({ count }: { count: number }): React.ReactElement {
   return (
     <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-800/50 text-xs text-blue-700 dark:text-blue-300 font-medium">
       <span className="size-1.5 rounded-full bg-blue-500 shrink-0" />
-      Showing data from {fmtDate(cutoffDate)} onwards
-      {count !== undefined && <span className="ml-1 font-normal opacity-70">· {count} records</span>}
+      Showing filtered data · {count} matching records
     </div>
   );
 }
@@ -428,8 +436,7 @@ export default function SalesOverviewPage(): React.ReactElement {
   const tierData = useSalesPageData();
   const metadata = useTierMetadata();
   const filteredData = useFilteredData();
-  const { cutoffDate, filteredCount } = filteredData;
-  const { period } = useDashboardStore();
+  const { filteredCount, isFiltered } = filteredData;
 
   const greeting = getGreeting();
   const firstName = user?.first_name ?? "there";
@@ -450,16 +457,12 @@ export default function SalesOverviewPage(): React.ReactElement {
         <h2 className="text-lg font-semibold text-primary mt-3">Sales Overview</h2>
       </div>
 
-      <FilterBanner
-        period={period}
-        cutoffDate={tierData.tier === "basic" ? cutoffDate : null}
-        count={tierData.tier === "basic" ? filteredCount : undefined}
-      />
+      {isFiltered && tierData.tier === "basic" && <FilterNotice count={filteredCount} />}
 
       <SectionHeader title="Key Numbers" />
-      {tierData.tier === "basic"        && <BasicContent data={filteredData.page_1} period={period} />}
-      {tierData.tier === "intermediate" && <IntContent   data={tierData.data} period={period} dataEndDate={metadata.date_range.end} />}
-      {tierData.tier === "advanced"     && <AdvContent   data={tierData.data} period={period} dataEndDate={metadata.date_range.end} />}
+      {tierData.tier === "basic"        && <BasicContent data={filteredData.page_1} />}
+      {tierData.tier === "intermediate" && <IntContent   data={tierData.data} />}
+      {tierData.tier === "advanced"     && <AdvContent   data={tierData.data} />}
     </div>
   );
 }

@@ -541,7 +541,8 @@ function DataQualityBanner({ pctClean, issueCount }: { pctClean: number; issueCo
 export default function CockpitPage(): React.ReactElement {
   const { data: user } = useGetProfile();
   const summary = useExecutiveSummaryData();
-  const { period } = useDashboardStore();
+  const { filterYears, filterMonths, filterDaysOfWeek } = useDashboardStore();
+  const isFiltered = filterYears.length > 0 || filterMonths.length > 0 || filterDaysOfWeek.length > 0;
 
   const firstName = user?.first_name ?? "there";
   const greeting = getGreeting();
@@ -589,10 +590,10 @@ export default function CockpitPage(): React.ReactElement {
       </div>
 
       {/* ── Period note (Cockpit always shows full dataset) ── */}
-      {period !== "all" && (
+      {isFiltered && (
         <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-100 dark:border-amber-800/50 text-xs text-amber-700 dark:text-amber-400 font-medium">
           <span className="size-1.5 rounded-full bg-amber-500 shrink-0" />
-          This summary covers your full dataset. Visit Sales or Products to see period-filtered data.
+          This summary covers your full dataset. Visit Sales or Products to see filtered data.
         </div>
       )}
 
@@ -627,11 +628,15 @@ export default function CockpitPage(): React.ReactElement {
         ))}
       </div>
 
+      {/* ── Forecast Insight (directly after Vital Signs) ── */}
+      <SectionHeader title="Forecast" />
+      <ForecastInsightCard daysUntilStockout={daysUntilStockout} />
+
       {/* ── What Happened + Inline Charts ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+        <div className="flex flex-col">
           <SectionHeader title="What Happened" />
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3 flex-1">
             {signals.length > 0
               ? signals.map((signal, i) => <SignalCard key={i} signal={signal} />)
               : <p className="text-sm text-gray-400">No signals detected for this period.</p>
@@ -639,9 +644,9 @@ export default function CockpitPage(): React.ReactElement {
           </div>
         </div>
         {inlineCharts.length > 0 && (
-          <div>
+          <div className="flex flex-col">
             <SectionHeader title="Key Visuals" />
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4 flex-1">
               {inlineCharts.map((chart, i) => (
                 <CockpitChart key={i} chart={chart} />
               ))}
@@ -666,9 +671,7 @@ export default function CockpitPage(): React.ReactElement {
         ))}
       </div>
 
-      {/* ── Forecast Insight ── */}
-      <SectionHeader title="Forecast" />
-      <ForecastInsightCard daysUntilStockout={daysUntilStockout} />
+      {/* Forecast moved above — after Vital Signs */}
 
     </div>
   );

@@ -52,7 +52,9 @@ function MonthProgressCard(): React.ReactElement | null {
   return (
     <div className={cn(
       "rounded-2xl border overflow-hidden",
-      isOnTrack ? "bg-emerald-50 border-emerald-200" : "bg-amber-50 border-amber-200",
+      isOnTrack
+        ? "bg-emerald-50 border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-800/50"
+        : "bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:border-amber-800/50",
     )}>
       <div className={cn("h-1 w-full", isOnTrack ? "bg-emerald-400" : "bg-amber-400")} />
       <div className="p-5">
@@ -63,7 +65,7 @@ function MonthProgressCard(): React.ReactElement | null {
           }
           <div>
             <p className="text-xs font-semibold text-gray-500 dark:text-slate-400">{cm.month} — Current Month</p>
-            <p className={cn("text-xs font-bold", isOnTrack ? "text-emerald-600" : "text-amber-600")}>{cm.status_label}</p>
+            <p className={cn("text-xs font-bold", isOnTrack ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400")}>{cm.status_label}</p>
           </div>
         </div>
         <div className="flex items-end gap-2 mb-2">
@@ -97,7 +99,7 @@ function NextMonthCard(): React.ReactElement | null {
           <span className="text-3xl font-black text-gray-900 dark:text-slate-100 tabular-nums">{nf.forecast_fmt}</span>
           <span className={cn(
             "text-sm font-bold px-2.5 py-1 rounded-full",
-            isUp ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600",
+            isUp ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400" : "bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-400",
           )}>
             {isUp ? "↑" : "↓"} {nf.growth_pct}
           </span>
@@ -487,7 +489,8 @@ export default function ForecastInsightsPage(): React.ReactElement {
   const { data: user } = useGetProfile();
   const tierData = useForecastPageData();
   const metadata = useTierMetadata();
-  const { period } = useDashboardStore();
+  const { filterYears, filterMonths, filterDaysOfWeek } = useDashboardStore();
+  const isFiltered = filterYears.length > 0 || filterMonths.length > 0 || filterDaysOfWeek.length > 0;
 
   const firstName = user?.first_name ?? "there";
   const greeting = getGreeting();
@@ -510,10 +513,10 @@ export default function ForecastInsightsPage(): React.ReactElement {
         </div>
       </div>
 
-      {period !== "all" && (
+      {isFiltered && (
         <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-100 dark:border-amber-800/50 text-xs text-amber-700 dark:text-amber-300 font-medium">
           <span className="size-1.5 rounded-full bg-amber-500 shrink-0" />
-          Forecasts are always calculated from the full dataset — the period filter does not apply here.
+          Forecasts are always calculated from the full dataset — the active filter does not apply here.
         </div>
       )}
 

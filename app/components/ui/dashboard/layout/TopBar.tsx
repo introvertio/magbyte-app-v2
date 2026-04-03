@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Account from "./header/Account";
@@ -103,71 +103,92 @@ function formatDateRange(start: string | null | undefined, end: string | null | 
   return `${fmt(start)} – ${fmt(end)}`;
 }
 
-// ── Date filter dropdowns ─────────────────────────────────────────────────────
+// ── Multiselect filter dropdown ───────────────────────────────────────────────
 
-const SELECT_CLS =
-  "bg-white/10 border border-white/20 rounded-lg text-white text-[11px] font-medium px-2 py-1 focus:outline-none focus:border-white/40 [color-scheme:dark] cursor-pointer";
+interface MultiSelectFilterProps {
+  label: string;
+  options: { label: string; value: number }[];
+  selected: number[];
+  onToggle: (value: number) => void;
+}
+
+function MultiSelectFilter({ label, options, selected, onToggle }: MultiSelectFilterProps): React.ReactElement {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const count = selected.length;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className={cn(
+          "rounded-lg text-[11px] font-medium px-2 py-1 cursor-pointer transition-colors border",
+          count > 0
+            ? "bg-white/20 border-white/40 text-white"
+            : "bg-white/10 border-white/20 text-white/70 hover:text-white hover:bg-white/15"
+        )}
+      >
+        {label}{count > 0 ? ` · ${count}` : ""}
+      </button>
+      {open && (
+        <div className="absolute top-full mt-1 right-0 z-50 bg-slate-800 border border-white/10 rounded-xl shadow-2xl min-w-[130px] py-1 overflow-hidden">
+          {options.map((opt) => (
+            <label
+              key={opt.value}
+              className="flex items-center gap-2 px-3 py-1.5 text-[11px] text-white/80 hover:bg-white/10 cursor-pointer transition-colors select-none"
+            >
+              <input
+                type="checkbox"
+                checked={selected.includes(opt.value)}
+                onChange={() => onToggle(opt.value)}
+                className="accent-primary size-3 shrink-0"
+              />
+              {opt.label}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Date filter bar ───────────────────────────────────────────────────────────
 
 function DateFilterBar(): React.ReactElement {
   const {
-    filterYear, filterMonth, filterDayOfWeek,
-    setFilterYear, setFilterMonth, setFilterDayOfWeek,
+    filterYears, filterMonths, filterDaysOfWeek,
+    toggleFilterYear, toggleFilterMonth, toggleFilterDayOfWeek,
+    clearFilters,
   } = useDashboardStore();
 
   const metadata = useTierMetadata();
   const years = getAvailableYears(metadata.date_range.start, metadata.date_range.end);
 
-  const isFiltered = filterYear !== null || filterMonth !== null || filterDayOfWeek !== null;
+  const isFiltered = filterYears.length > 0 || filterMonths.length > 0 || filterDaysOfWeek.length > 0;
+
+  const yearOptions  = years.map((y) => ({ label: String(y), value: y }));
+  const monthOptions = MONTHS.map((m, i) => ({ label: m, value: i }));
+  const dayOptions   = DAYS.map((d) => ({ label: d.label, value: d.value }));
 
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
-      {/* Year */}
-      <select
-        value={filterYear ?? ""}
-        onChange={(e) => setFilterYear(e.target.value ? Number(e.target.value) : null)}
-        className={SELECT_CLS}
-        aria-label="Filter by year"
-      >
-        <option value="">Year</option>
-        {years.map((y) => (
-          <option key={y} value={y}>{y}</option>
-        ))}
-      </select>
-
-      {/* Month */}
-      <select
-        value={filterMonth ?? ""}
-        onChange={(e) => setFilterMonth(e.target.value !== "" ? Number(e.target.value) : null)}
-        className={SELECT_CLS}
-        aria-label="Filter by month"
-      >
-        <option value="">Month</option>
-        {MONTHS.map((m, i) => (
-          <option key={i} value={i}>{m}</option>
-        ))}
-      </select>
-
-      {/* Day of week */}
-      <select
-        value={filterDayOfWeek ?? ""}
-        onChange={(e) => setFilterDayOfWeek(e.target.value !== "" ? Number(e.target.value) : null)}
-        className={SELECT_CLS}
-        aria-label="Filter by day of week"
-      >
-        <option value="">Day</option>
-        {DAYS.map((d) => (
-          <option key={d.value} value={d.value}>{d.label}</option>
-        ))}
-      </select>
-
-      {/* Clear button — only shown when a filter is active */}
+      <MultiSelectFilter label="Year"  options={yearOptions}  selected={filterYears}      onToggle={toggleFilterYear} />
+      <MultiSelectFilter label="Month" options={monthOptions} selected={filterMonths}     onToggle={toggleFilterMonth} />
+      <MultiSelectFilter label="Day"   options={dayOptions}   selected={filterDaysOfWeek} onToggle={toggleFilterDayOfWeek} />
       {isFiltered && (
         <button
-          onClick={() => {
-            setFilterYear(null);
-            setFilterMonth(null);
-            setFilterDayOfWeek(null);
-          }}
+          onClick={clearFilters}
           className="text-[10px] font-semibold text-white/40 hover:text-white/80 transition-colors px-1.5 py-1 rounded border border-white/10 hover:border-white/30"
           aria-label="Clear all filters"
         >

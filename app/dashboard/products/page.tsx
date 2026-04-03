@@ -348,7 +348,7 @@ export default function ProductPerformancePage(): React.ReactElement {
   const { data: user } = useGetProfile();
   const tierData = useProductsPageData();
   const metadata = useTierMetadata();
-  const { cutoffDate } = useFilteredData();
+  const { isFiltered, filteredCount } = useFilteredData();
 
   const greeting = getGreeting();
   const firstName = user?.first_name ?? "there";
@@ -369,10 +369,10 @@ export default function ProductPerformancePage(): React.ReactElement {
         <h2 className="text-lg font-semibold text-primary mt-3">Product Performance</h2>
       </div>
 
-      {tierData.tier === "basic" && cutoffDate && (
+      {tierData.tier === "basic" && isFiltered && (
         <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-800/50 text-xs text-blue-700 dark:text-blue-300 font-medium">
           <span className="size-1.5 rounded-full bg-blue-500 shrink-0" />
-          Showing data from {fmtDate(cutoffDate)} onwards
+          Showing filtered data · {filteredCount} matching records
         </div>
       )}
 

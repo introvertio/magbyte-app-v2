@@ -99,9 +99,9 @@ export function DashTooltip({ active, payload, label, valueFormatter }: DashTool
   const fmt = valueFormatter ?? ((v: number) => v.toLocaleString());
 
   return (
-    <div className="bg-white/90 dark:bg-slate-800/95 backdrop-blur-md text-gray-900 dark:text-slate-100 text-xs rounded-xl px-3 py-2.5 shadow-xl border border-white/60 dark:border-slate-600/50 ring-1 ring-black/[0.08] dark:ring-white/[0.05] min-w-[130px] max-w-[220px] pointer-events-none">
+    <div className="bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 text-xs rounded-xl px-3 py-2.5 shadow-lg border border-gray-200 dark:border-slate-700 min-w-[130px] max-w-[220px] pointer-events-none">
       {label !== undefined && label !== null && String(label) !== "" && (
-        <p className="text-gray-500 dark:text-slate-400 text-[10px] font-medium border-b border-black/[0.06] dark:border-slate-600/40 pb-1.5 mb-2 truncate">{String(label)}</p>
+        <p className="text-gray-500 dark:text-slate-400 text-[10px] font-medium border-b border-gray-100 dark:border-slate-700 pb-1.5 mb-2 truncate">{String(label)}</p>
       )}
       <div className="space-y-1.5">
         {payload.map((entry, i) => (
@@ -147,11 +147,11 @@ interface ChartCardProps {
 export function ChartCard({ title, subtitle, children, className, fullWidth }: ChartCardProps): React.ReactElement {
   return (
     <div className={cn(
-      "bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm rounded-2xl overflow-hidden border border-gray-200/80 dark:border-slate-700/50 shadow-md ring-1 ring-black/[0.04] dark:ring-white/[0.04]",
+      "bg-white dark:bg-slate-900 rounded-2xl overflow-hidden border border-gray-200 dark:border-slate-800 shadow-sm",
       fullWidth && "col-span-full",
       className,
     )}>
-      <div className="px-5 py-3.5 border-b border-gray-100/80 dark:border-slate-700/30 flex items-start justify-between">
+      <div className="px-5 py-3.5 border-b border-gray-100 dark:border-slate-800 flex items-start justify-between">
         <div>
           {subtitle && (
             <p className="text-[10px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">{subtitle}</p>
@@ -176,11 +176,11 @@ interface KpiCardProps {
 }
 
 const ACCENT_STYLES: Record<string, { card: string; value: string; dot: string }> = {
-  blue:  { card: "bg-blue-50/80 dark:bg-blue-950/50 border-blue-100/80 dark:border-blue-800/50 backdrop-blur-sm",       value: "text-blue-700 dark:text-blue-400",     dot: "bg-blue-500" },
-  green: { card: "bg-emerald-50/80 dark:bg-emerald-950/50 border-emerald-100/80 dark:border-emerald-800/50 backdrop-blur-sm", value: "text-emerald-700 dark:text-emerald-400", dot: "bg-emerald-500" },
-  amber: { card: "bg-amber-50/80 dark:bg-amber-950/50 border-amber-100/80 dark:border-amber-800/50 backdrop-blur-sm",   value: "text-amber-700 dark:text-amber-400",   dot: "bg-amber-500" },
-  red:   { card: "bg-red-50/80 dark:bg-red-950/50 border-red-200/80 dark:border-red-800/50 backdrop-blur-sm",           value: "text-red-600 dark:text-red-400",       dot: "bg-red-500" },
-  none:  { card: "bg-white/80 dark:bg-slate-900/80 border-gray-100/80 dark:border-slate-700/50 backdrop-blur-sm",       value: "text-gray-900 dark:text-slate-100",    dot: "bg-gray-300 dark:bg-slate-500" },
+  blue:  { card: "bg-blue-50 dark:bg-blue-950/30 border-blue-100 dark:border-blue-900",       value: "text-blue-700 dark:text-blue-400",     dot: "bg-blue-500" },
+  green: { card: "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-100 dark:border-emerald-900", value: "text-emerald-700 dark:text-emerald-400", dot: "bg-emerald-500" },
+  amber: { card: "bg-amber-50 dark:bg-amber-950/30 border-amber-100 dark:border-amber-900",   value: "text-amber-700 dark:text-amber-400",   dot: "bg-amber-500" },
+  red:   { card: "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900",           value: "text-red-600 dark:text-red-400",       dot: "bg-red-500" },
+  none:  { card: "bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800",          value: "text-gray-900 dark:text-slate-100",    dot: "bg-gray-300 dark:bg-slate-500" },
 };
 
 export function KpiCard({ label, value, tooltip, sub, alert = false, accent = "none" }: KpiCardProps): React.ReactElement {
@@ -188,7 +188,7 @@ export function KpiCard({ label, value, tooltip, sub, alert = false, accent = "n
   const style = alert ? ACCENT_STYLES.red : ACCENT_STYLES[accent];
 
   return (
-    <div className={cn("relative rounded-2xl p-4 border overflow-hidden transition-shadow hover:shadow-md", style.card)}>
+    <div className={cn("relative rounded-2xl p-4 border transition-shadow hover:shadow-md", style.card)}>
       {/* Corner decoration */}
       <span className="pointer-events-none absolute -right-5 -top-5 size-16 rounded-full bg-black/[0.035]" />
       <span className="pointer-events-none absolute -right-1.5 -top-1.5 size-7 rounded-full bg-black/[0.03]" />
@@ -206,7 +206,7 @@ export function KpiCard({ label, value, tooltip, sub, alert = false, accent = "n
           <InformationCircleIcon className="size-3.5" />
         </button>
         {showTip && (
-          <div className="absolute top-5 right-0 z-20 bg-white/90 dark:bg-slate-800/95 backdrop-blur-md text-gray-900 dark:text-slate-100 text-xs rounded-xl px-3 py-2 w-52 shadow-xl leading-relaxed border border-black/[0.08] dark:border-slate-600/50 ring-1 ring-black/[0.04] dark:ring-white/[0.04]">
+          <div className="absolute top-5 right-0 z-20 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 text-xs rounded-xl px-3 py-2 w-52 shadow-lg leading-relaxed border border-gray-200 dark:border-slate-700">
             {tooltip}
           </div>
         )}
