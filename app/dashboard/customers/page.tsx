@@ -1,18 +1,42 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ResponsiveContainer, BarChart, Bar, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip,
 } from "recharts";
 import { useCustomersPageData, useTierMetadata } from "@/app/hooks/useDashboardData";
+import { filterMonthlyTrend, toDate } from "@/app/hooks/useFilteredData";
+import { useDashboardStore } from "@/app/stores/dashboard/useDashboardStore";
 import { useGetProfile } from "@/app/components/hooks/user/useGetProfile";
-import { getGreeting, formatNaira, cn } from "@/lib/utils";
+import { getGreeting, formatNaira, cn, fmtTableDate } from "@/lib/utils";
 import {
-  DashTooltip, GradDefs, GRAD, SectionHeader, ChartCard, KpiCard, TICK, GRID_STROKE,
+  DashTooltip, GradDefs, GRAD, SectionHeader, ChartCard, KpiCard, TICK, GRID_STROKE, CHART_PRIMARY_VAR,
 } from "@/app/components/ui/dashboard/ChartUtils";
+import { EditableGreeting } from "@/app/components/ui/dashboard/EditableGreeting";
 import type { IntermediateAnalysisResult } from "@/app/types/intermediateAnalysis";
 import type { AdvancedAnalysisResult } from "@/app/types/advancedAnalysis";
+
+function matchesDateFilters(
+  dateStr: string,
+  filterYears: number[],
+  filterMonths: number[],
+  filterDaysOfWeek: number[],
+): boolean {
+  const d = toDate(dateStr);
+  if (Number.isNaN(d.getTime())) return false;
+  if (filterYears.length > 0 && !filterYears.includes(d.getFullYear())) return false;
+  if (filterMonths.length > 0 && !filterMonths.includes(d.getMonth())) return false;
+  if (filterDaysOfWeek.length > 0 && !filterDaysOfWeek.includes(d.getDay())) return false;
+  return true;
+}
+
+function getVisitsBucket(visits: number): string {
+  if (visits <= 1) return "1x";
+  if (visits <= 3) return "2-3x";
+  if (visits <= 5) return "4-5x";
+  return "6x+";
+}
 
 // ── Intermediate customer table ───────────────────────────────────────────────
 
@@ -35,12 +59,12 @@ function IntCustomerTable({ rows }: { rows: IntermediateAnalysisResult["page_3"]
             ))}
           </tr></thead>
           <tbody>{slice.map((row, i) => (
-            <tr key={i} className={cn("border-b border-gray-50 dark:border-slate-800 hover:bg-blue-50/30 dark:hover:bg-blue-950/30 transition-colors", i%2===0?"bg-white dark:bg-slate-900":"bg-gray-50/40 dark:bg-slate-800/30")}>
+            <tr key={i} className={cn("relative border-b border-gray-50 dark:border-slate-800 hover:bg-blue-50/60 dark:hover:bg-blue-950/40 hover:scale-[1.01] hover:z-10 transition-all duration-150", i%2===0?"bg-white dark:bg-slate-900":"bg-gray-50/40 dark:bg-slate-800/30")}>
               <td className="px-4 py-2.5 text-gray-800 dark:text-slate-200 font-medium">{row.customer_name}</td>
               <td className="px-4 py-2.5 text-gray-500 dark:text-slate-500 font-mono text-[11px]">{row.customer_phone}</td>
               <td className="px-4 py-2.5 font-semibold text-gray-800 dark:text-slate-200 tabular-nums">{formatNaira(row.total_spent)}</td>
               <td className="px-4 py-2.5 text-gray-700 dark:text-slate-300 tabular-nums">{row.total_visits}</td>
-              <td className="px-4 py-2.5 text-gray-400 dark:text-slate-500">{String(row.last_visit_date).slice(0, 10)}</td>
+              <td className="px-4 py-2.5 text-gray-400 dark:text-slate-500">{fmtTableDate(row.last_visit_date)}</td>
               <td className="px-4 py-2.5 text-purple-600 dark:text-purple-400 font-semibold tabular-nums">{formatNaira(row.clv)}</td>
             </tr>
           ))}</tbody>
@@ -82,7 +106,7 @@ function AdvCustomerTable({ rows }: { rows: AdvancedAnalysisResult["page_3"]["cl
           <tbody>{slice.map((row, i) => {
             const rank = page * PAGE_SIZE + i + 1;
             return (
-              <tr key={i} className={cn("border-b border-gray-50 dark:border-slate-800 hover:bg-blue-50/30 dark:hover:bg-blue-950/30 transition-colors", i%2===0?"bg-white dark:bg-slate-900":"bg-gray-50/40 dark:bg-slate-800/30")}>
+              <tr key={i} className={cn("relative border-b border-gray-50 dark:border-slate-800 hover:bg-blue-50/60 dark:hover:bg-blue-950/40 hover:scale-[1.01] hover:z-10 transition-all duration-150", i%2===0?"bg-white dark:bg-slate-900":"bg-gray-50/40 dark:bg-slate-800/30")}>
                 <td className="px-4 py-2.5">
                   <span className={cn("inline-flex items-center justify-center size-6 rounded-full text-[10px] font-bold",
                     rank===1?"bg-amber-100 text-amber-700":rank===2?"bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300":rank===3?"bg-orange-50 text-orange-600":"bg-gray-50 dark:bg-slate-800 text-gray-400 dark:text-slate-500")}>
@@ -93,7 +117,7 @@ function AdvCustomerTable({ rows }: { rows: AdvancedAnalysisResult["page_3"]["cl
                 <td className="px-4 py-2.5 text-gray-500 dark:text-slate-500 font-mono text-[11px]">{row.phone}</td>
                 <td className="px-4 py-2.5 font-semibold text-gray-800 dark:text-slate-200 tabular-nums">{row.total_spent}</td>
                 <td className="px-4 py-2.5 text-gray-700 dark:text-slate-300 tabular-nums">{row.visits}</td>
-                <td className="px-4 py-2.5 text-gray-400 dark:text-slate-500">{String(row.last_visit).slice(0, 10)}</td>
+                <td className="px-4 py-2.5 text-gray-400 dark:text-slate-500">{fmtTableDate(row.last_visit)}</td>
               </tr>
             );
           })}</tbody>
@@ -130,7 +154,7 @@ function IntContent({ data }: { data: IntermediateAnalysisResult["page_3"] }): R
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
         {/* Monthly active customers */}
         {charts.monthly_active.length > 0 && (
-          <ChartCard title="How many customers shopped each month?" subtitle="Monthly Active Customers">
+          <ChartCard title="How many customers shopped each month?" subtitle="Monthly Active Customers" tooltip="Tracks how many unique people bought from you each month. A growing line means your customer base is expanding.">
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={charts.monthly_active} margin={{top:4,right:8,left:0,bottom:0}}>
                 <GradDefs />
@@ -138,7 +162,7 @@ function IntContent({ data }: { data: IntermediateAnalysisResult["page_3"] }): R
                 <XAxis dataKey="month_short" tick={TICK} axisLine={false} tickLine={false} />
                 <YAxis tick={TICK} axisLine={false} tickLine={false} />
                 <Tooltip content={<DashTooltip />} />
-                <Area type="monotone" dataKey="active_customers" name="Active Customers" stroke="#001BB7" strokeWidth={2.5} fill={`url(#${GRAD.blueArea})`} dot={false} />
+                <Area type="monotone" dataKey="active_customers" name="Active Customers" stroke={CHART_PRIMARY_VAR} strokeWidth={2.5} fill={`url(#${GRAD.blueArea})`} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -146,7 +170,7 @@ function IntContent({ data }: { data: IntermediateAnalysisResult["page_3"] }): R
 
         {/* Frequency distribution */}
         {charts.frequency_distribution.length > 0 && (
-          <ChartCard title="How often do customers buy from you?" subtitle="Purchase Frequency">
+          <ChartCard title="How often do customers buy from you?" subtitle="Purchase Frequency" tooltip="Groups customers by how many times they've shopped. Most stores have many one-time buyers — converting them into regulars is the goal.">
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={charts.frequency_distribution} margin={{top:4,right:8,left:0,bottom:0}}>
                 <GradDefs />
@@ -162,7 +186,7 @@ function IntContent({ data }: { data: IntermediateAnalysisResult["page_3"] }): R
 
         {/* Top customers by spend */}
         {charts.customer_leaderboard.length > 0 && (
-          <ChartCard title="Who are your top spenders?" subtitle="Customer Leaderboard">
+          <ChartCard title="Who are your top spenders?" subtitle="Customer Leaderboard" tooltip="The customers who've spent the most with you overall. Consider offering them loyalty perks to keep them coming back.">
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={charts.customer_leaderboard.slice(0,8)} layout="vertical" margin={{top:0,right:16,left:0,bottom:0}}>
                 <GradDefs />
@@ -197,7 +221,7 @@ function AdvContent({ data }: { data: AdvancedAnalysisResult["page_3"] }): React
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
         {/* Monthly active customers */}
         {charts.monthly_active.length > 0 && (
-          <ChartCard title="How many customers shopped each month?" subtitle="Monthly Active Customers">
+          <ChartCard title="How many customers shopped each month?" subtitle="Monthly Active Customers" tooltip="Tracks how many unique people bought from you each month. A growing line means your customer base is expanding.">
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={charts.monthly_active} margin={{top:4,right:8,left:0,bottom:0}}>
                 <GradDefs />
@@ -205,7 +229,7 @@ function AdvContent({ data }: { data: AdvancedAnalysisResult["page_3"] }): React
                 <XAxis dataKey="month_short" tick={TICK} axisLine={false} tickLine={false} />
                 <YAxis tick={TICK} axisLine={false} tickLine={false} />
                 <Tooltip content={<DashTooltip />} />
-                <Area type="monotone" dataKey="active_customers" name="Active Customers" stroke="#001BB7" strokeWidth={2.5} fill={`url(#${GRAD.blueArea})`} dot={false} />
+                <Area type="monotone" dataKey="active_customers" name="Active Customers" stroke={CHART_PRIMARY_VAR} strokeWidth={2.5} fill={`url(#${GRAD.blueArea})`} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -213,7 +237,7 @@ function AdvContent({ data }: { data: AdvancedAnalysisResult["page_3"] }): React
 
         {/* Spending distribution */}
         {charts.spending_distribution.length > 0 && (
-          <ChartCard title="How much do your customers typically spend?" subtitle="Spending Distribution">
+          <ChartCard title="How much do your customers typically spend?" subtitle="Spending Distribution" tooltip="Groups customers by how much they've spent in total. If most people are in the low bucket, there's room to grow your average order value.">
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={charts.spending_distribution} margin={{top:4,right:8,left:0,bottom:0}}>
                 <GradDefs />
@@ -229,7 +253,7 @@ function AdvContent({ data }: { data: AdvancedAnalysisResult["page_3"] }): React
 
         {/* Customer ranking — ranked list (values are pre-formatted strings) */}
         {charts.customer_ranking.length > 0 && (
-          <ChartCard title="Who are your top spenders?" subtitle="Customer Ranking">
+          <ChartCard title="Who are your top spenders?" subtitle="Customer Ranking" tooltip="The customers who've spent the most with you overall. Consider offering them loyalty perks to keep them coming back.">
             <div className="flex flex-col gap-2 py-1">
               {charts.customer_ranking.slice(0, 8).map((row, i) => (
                 <div key={row.customer} className="flex items-center gap-3 px-1">
@@ -257,9 +281,106 @@ export default function CustomersPage(): React.ReactElement {
   const { data: user } = useGetProfile();
   const tierData = useCustomersPageData();
   const metadata = useTierMetadata();
+  const { filterYears, filterMonths, filterDaysOfWeek } = useDashboardStore();
+  const isFiltered = filterYears.length > 0 || filterMonths.length > 0 || filterDaysOfWeek.length > 0;
 
   const greeting = getGreeting();
-  const userName = user?.first_name ? `, ${user.first_name}` : "";
+  const firstName = user?.first_name ?? "there";
+
+  const filteredIntermediateData = useMemo(() => {
+    if (!tierData || tierData.tier !== "intermediate") return null;
+
+    // Applies global date filters to customers page and re-derives dependent KPIs/charts.
+    const filteredRows = tierData.data.customer_detail_table.filter((row) =>
+      matchesDateFilters(row.last_visit_date, filterYears, filterMonths, filterDaysOfWeek),
+    );
+
+    const filteredMonthlyActiveMap: Record<string, Set<string>> = {};
+    filteredRows.forEach((row) => {
+      const d = toDate(row.last_visit_date);
+      if (Number.isNaN(d.getTime())) return;
+      const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const monthShort = d.toLocaleDateString("en-GB", { month: "short" });
+      const key = `${month}|${monthShort}`;
+      if (!filteredMonthlyActiveMap[key]) filteredMonthlyActiveMap[key] = new Set<string>();
+      filteredMonthlyActiveMap[key].add(row.customer_name);
+    });
+    const filteredMonthlyActive = Object.entries(filteredMonthlyActiveMap)
+      .map(([key, names]) => {
+        const [month, month_short] = key.split("|");
+        return { month, month_short, active_customers: names.size };
+      })
+      .sort((a, b) => a.month.localeCompare(b.month));
+
+    const frequencyMap: Record<string, number> = {};
+    filteredRows.forEach((row) => {
+      const bucket = getVisitsBucket(row.total_visits);
+      frequencyMap[bucket] = (frequencyMap[bucket] ?? 0) + 1;
+    });
+    const bucketOrder = ["1x", "2-3x", "4-5x", "6x+"];
+    const filteredFrequencyDistribution = bucketOrder
+      .filter((bucket) => frequencyMap[bucket] !== undefined)
+      .map((bucket) => ({ bucket, customer_count: frequencyMap[bucket] }));
+
+    const filteredLeaderboard = [...filteredRows]
+      .sort((a, b) => b.total_spent - a.total_spent)
+      .slice(0, 10)
+      .map((row) => ({
+        name: row.customer_name,
+        customer_phone: row.customer_phone,
+        total_spent: row.total_spent,
+        visits: row.total_visits,
+      }));
+
+    const totalSpent = filteredRows.reduce((sum, row) => sum + row.total_spent, 0);
+    const totalVisits = filteredRows.reduce((sum, row) => sum + row.total_visits, 0);
+    const uniqueCustomers = filteredRows.length;
+    const repeatCustomers = filteredRows.filter((row) => row.total_visits > 1).length;
+    const latestVisit = filteredRows.reduce(
+      (max, row) => (row.last_visit_date > max ? row.last_visit_date : max),
+      filteredRows[0]?.last_visit_date ?? tierData.data.kpis.last_visit_date,
+    );
+    const avgCustomerValue = uniqueCustomers > 0 ? totalSpent / uniqueCustomers : 0;
+    const avgVisits = uniqueCustomers > 0 ? totalVisits / uniqueCustomers : 0;
+    const repeatRate = uniqueCustomers > 0 ? (repeatCustomers / uniqueCustomers) * 100 : 0;
+    const churnedCustomers = filteredRows.filter((row) => row.total_visits <= 1).length;
+    const clv = uniqueCustomers > 0 ? filteredRows.reduce((sum, row) => sum + row.clv, 0) / uniqueCustomers : 0;
+
+    const fallbackMonthlyActive = filterMonthlyTrend(tierData.data.charts.monthly_active, filterYears, filterMonths);
+    const nextMonthlyActive = filteredMonthlyActive.length > 0 ? filteredMonthlyActive : fallbackMonthlyActive;
+
+    return {
+      ...tierData.data,
+      kpis: {
+        ...tierData.data.kpis,
+        unique_customers: uniqueCustomers,
+        repeat_customers: repeatCustomers,
+        repeat_purchase_rate: Number(repeatRate.toFixed(1)),
+        clv,
+        avg_customer_value: avgCustomerValue,
+        total_spent_list: totalSpent,
+        total_visits: totalVisits,
+        avg_visits_per_customer: avgVisits,
+        last_visit_date: latestVisit,
+        customers_this_month: nextMonthlyActive[nextMonthlyActive.length - 1]?.active_customers ?? 0,
+        churned_customers: churnedCustomers,
+        customer_retention_rate: Number(repeatRate.toFixed(1)),
+      },
+      customer_detail_table: filteredRows,
+      charts: {
+        ...tierData.data.charts,
+        monthly_active: nextMonthlyActive,
+        frequency_distribution: filteredFrequencyDistribution,
+        customer_leaderboard: filteredLeaderboard,
+      },
+    };
+  }, [tierData, filterYears, filterMonths, filterDaysOfWeek]);
+
+  const intermediateDateRange = useMemo(() => {
+    if (!filteredIntermediateData || filteredIntermediateData.customer_detail_table.length === 0) return null;
+    const dates = filteredIntermediateData.customer_detail_table.map((r) => r.last_visit_date).sort();
+    return { start: dates[0], end: dates[dates.length - 1], count: filteredIntermediateData.customer_detail_table.length };
+  }, [filteredIntermediateData]);
 
   if (!tierData) {
     return (
@@ -273,18 +394,27 @@ export default function CustomersPage(): React.ReactElement {
     <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
       <div>
         <p className="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-0.5">Customers</p>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{greeting}{userName}</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{greeting}, <EditableGreeting fallbackName={firstName} /></h1>
         <p className="text-sm text-gray-400 dark:text-slate-500 mt-0.5">
-          {metadata.date_range.start} – {metadata.date_range.end} · {metadata.record_count} transactions
+          {intermediateDateRange
+            ? `${intermediateDateRange.start} – ${intermediateDateRange.end} · ${intermediateDateRange.count} customers`
+            : `${metadata.date_range.start} – ${metadata.date_range.end} · ${metadata.record_count} transactions`}
         </p>
       </div>
 
+      {isFiltered && tierData.tier === "advanced" && (
+        <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-100 dark:border-amber-800/50 text-xs text-amber-700 dark:text-amber-400 font-medium">
+          <span className="size-1.5 rounded-full bg-amber-500 shrink-0" />
+          Date filters currently apply fully on Intermediate customers data. Advanced customer metrics still use full dataset.
+        </div>
+      )}
+
       <SectionHeader title="Key Numbers" />
-      {tierData.tier === "intermediate" && <IntContent data={tierData.data} />}
+      {tierData.tier === "intermediate" && filteredIntermediateData && <IntContent data={filteredIntermediateData} />}
       {tierData.tier === "advanced"     && <AdvContent data={tierData.data} />}
 
       <SectionHeader title="Customer Directory" />
-      {tierData.tier === "intermediate" && <IntCustomerTable rows={tierData.data.customer_detail_table} />}
+      {tierData.tier === "intermediate" && filteredIntermediateData && <IntCustomerTable rows={filteredIntermediateData.customer_detail_table} />}
       {tierData.tier === "advanced"     && <AdvCustomerTable rows={tierData.data.clv_leaderboard} />}
     </div>
   );

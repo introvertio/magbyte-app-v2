@@ -1,12 +1,18 @@
 "use client";
 import { validateAuth } from "@/lib/api/auth/validate";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useTokenStore } from "../../stores/auth/useTokenStore";
 
-export function useAuthGuard(redirectTo?: string) {
+interface AuthGuardState {
+  sessionExpired: boolean;
+}
+
+export function useAuthGuard(redirectTo?: string): AuthGuardState {
   const router = useRouter();
   const { token, setToken } = useTokenStore();
+  // true while we're showing the "session expired" message before redirect
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   useEffect(() => {
     // Dev bypass: skip token validation but still respect login state.
@@ -24,19 +30,21 @@ export function useAuthGuard(redirectTo?: string) {
         return;
       }
 
-      const isValid = await validateAuth(token);
-      if (!isValid) {
+      try {
+        await validateAuth(token);
+        // Token is valid — redirect if a destination was requested
+        if (redirectTo) router.replace(redirectTo);
+      } catch {
+        // Token is invalid or expired: clear it, show the message, then redirect
         setToken(null);
-        router.replace("/");
-      } else {
-        if (redirectTo) {
-          router.replace(redirectTo);
-        }
+        setSessionExpired(true);
+        setTimeout(() => router.replace("/"), 2500);
       }
-      // Valid users stay on the current page - no redirect needed
     };
 
-    // Initial validation
     validateToken();
-  }, [token, redirectTo, router, setToken]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  return { sessionExpired };
 }

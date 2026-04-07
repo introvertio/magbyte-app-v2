@@ -67,7 +67,7 @@ export default function Home(): React.ReactElement {
         {/* Hero copy */}
         <div className="relative z-10">
           <h1 className="text-4xl font-bold text-white leading-tight mb-4">
-            Turn your sales data<br />into smart decisions.
+            Own your business<br />decision system.
           </h1>
           <p className="text-white/50 text-base leading-relaxed mb-10 max-w-sm">
             MagByte gives small business owners a powerful analytics dashboard

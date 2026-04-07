@@ -1,167 +1,11 @@
 "use client";
 
 import React from "react";
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useDashboardStore } from "@/app/stores/dashboard/useDashboardStore";
 import type { DashboardTier } from "@/app/stores/dashboard/useDashboardStore";
 import { cn } from "@/lib/utils";
-import {
-  HomeIcon,
-  BanknotesIcon,
-  ShoppingBagIcon,
-  ArrowTrendingUpIcon,
-  ArrowUpTrayIcon,
-  ReceiptPercentIcon,
-  UserGroupIcon,
-  UsersIcon,
-} from "@heroicons/react/24/outline";
-import {
-  HomeIcon as HomeIconSolid,
-  BanknotesIcon as BanknotesIconSolid,
-  ShoppingBagIcon as ShoppingBagIconSolid,
-  ArrowTrendingUpIcon as ArrowTrendingUpIconSolid,
-  ReceiptPercentIcon as ReceiptPercentIconSolid,
-  UserGroupIcon as UserGroupIconSolid,
-  UsersIcon as UsersIconSolid,
-} from "@heroicons/react/24/solid";
-
-// ── Nav item type ──────────────────────────────────────────────────────────
-
-interface NavItem {
-  label: string;
-  href: string;
-  icon: React.ElementType;
-  iconActive: React.ElementType;
-  exact: boolean;
-}
-
-// ── Nav item definitions per tier ─────────────────────────────────────────
-
-// Forecast is always last — it will be a locked/premium page at launch
-const FORECAST_ITEM: NavItem = {
-  label: "Forecast Insights",
-  href: "/dashboard/forecast",
-  icon: ArrowTrendingUpIcon,
-  iconActive: ArrowTrendingUpIconSolid,
-  exact: false,
-};
-
-const BASE_NAV: NavItem[] = [
-  {
-    label: "Cockpit",
-    href: "/dashboard",
-    icon: HomeIcon,
-    iconActive: HomeIconSolid,
-    exact: true,
-  },
-  {
-    label: "Sales Overview",
-    href: "/dashboard/sales",
-    icon: BanknotesIcon,
-    iconActive: BanknotesIconSolid,
-    exact: false,
-  },
-  {
-    label: "Product Performance",
-    href: "/dashboard/products",
-    icon: ShoppingBagIcon,
-    iconActive: ShoppingBagIconSolid,
-    exact: false,
-  },
-  FORECAST_ITEM,
-];
-
-const INTERMEDIATE_NAV: NavItem[] = [
-  {
-    label: "Cockpit",
-    href: "/dashboard",
-    icon: HomeIcon,
-    iconActive: HomeIconSolid,
-    exact: true,
-  },
-  {
-    label: "Sales Overview",
-    href: "/dashboard/sales",
-    icon: BanknotesIcon,
-    iconActive: BanknotesIconSolid,
-    exact: false,
-  },
-  {
-    label: "Product Performance",
-    href: "/dashboard/products",
-    icon: ShoppingBagIcon,
-    iconActive: ShoppingBagIconSolid,
-    exact: false,
-  },
-  {
-    label: "Customers",
-    href: "/dashboard/customers",
-    icon: UsersIcon,
-    iconActive: UsersIconSolid,
-    exact: false,
-  },
-  {
-    label: "Expenses",
-    href: "/dashboard/expenses",
-    icon: ReceiptPercentIcon,
-    iconActive: ReceiptPercentIconSolid,
-    exact: false,
-  },
-  FORECAST_ITEM,
-];
-
-const ADVANCED_NAV: NavItem[] = [
-  {
-    label: "Cockpit",
-    href: "/dashboard",
-    icon: HomeIcon,
-    iconActive: HomeIconSolid,
-    exact: true,
-  },
-  {
-    label: "Sales Overview",
-    href: "/dashboard/sales",
-    icon: BanknotesIcon,
-    iconActive: BanknotesIconSolid,
-    exact: false,
-  },
-  {
-    label: "Product Performance",
-    href: "/dashboard/products",
-    icon: ShoppingBagIcon,
-    iconActive: ShoppingBagIconSolid,
-    exact: false,
-  },
-  {
-    label: "Customers",
-    href: "/dashboard/customers",
-    icon: UsersIcon,
-    iconActive: UsersIconSolid,
-    exact: false,
-  },
-  {
-    label: "Expenses",
-    href: "/dashboard/expenses",
-    icon: ReceiptPercentIcon,
-    iconActive: ReceiptPercentIconSolid,
-    exact: false,
-  },
-  {
-    label: "Staff Performance",
-    href: "/dashboard/staff",
-    icon: UserGroupIcon,
-    iconActive: UserGroupIconSolid,
-    exact: false,
-  },
-  FORECAST_ITEM,
-];
-
-function navForTier(tier: DashboardTier): NavItem[] {
-  if (tier === "advanced") return ADVANCED_NAV;
-  if (tier === "intermediate") return INTERMEDIATE_NAV;
-  return BASE_NAV;
-}
+import { ArrowUpTrayIcon } from "@heroicons/react/24/outline";
 
 // ── Industry + tier dev toggle ─────────────────────────────────────────────
 // Shows industry label with tier picker — only rendered in dev mode.
@@ -240,11 +84,8 @@ function DevToggle({ expanded }: { expanded: boolean }): React.ReactElement {
 // ── Main component ─────────────────────────────────────────────────────────
 
 export default function SideRail(): React.ReactElement {
-  const pathname = usePathname();
-  const { sideRailExpanded, devTier } = useDashboardStore();
+  const { sideRailExpanded } = useDashboardStore();
   const isDevMode = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === "true";
-
-  const navItems = navForTier(devTier);
 
   return (
     <aside
@@ -254,44 +95,12 @@ export default function SideRail(): React.ReactElement {
         sideRailExpanded ? "w-52" : "w-14"
       )}
     >
-      {/* Nav items */}
-      <nav className="flex flex-col gap-1 pt-4 px-2 flex-1">
-        {navItems.map((item) => {
-          const isActive = item.exact
-            ? pathname === item.href
-            : pathname.startsWith(item.href);
-          const Icon = isActive ? item.iconActive : item.icon;
-
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              title={!sideRailExpanded ? item.label : undefined}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-2 py-2.5 transition-all duration-150 group relative",
-                isActive
-                  ? "bg-white/15 text-white"
-                  : "text-white/50 hover:text-white hover:bg-white/10"
-              )}
-            >
-              {/* Active indicator bar */}
-              {isActive && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-white rounded-r-full" />
-              )}
-              <Icon className="size-5 shrink-0" />
-              {sideRailExpanded && (
-                <span className="text-sm font-medium whitespace-nowrap overflow-hidden">
-                  {item.label}
-                </span>
-              )}
-            </Link>
-          );
-        })}
-      </nav>
+      {/* Spacer — pushes content to bottom */}
+      <div className="flex-1" />
 
       {/* Bottom section */}
       <div className="flex flex-col pb-2">
-        {/* Dev industry+tier toggle — only in dev mode */}
+        {/* Dev tier toggle — only in dev mode */}
         {isDevMode && (
           <DevToggle expanded={sideRailExpanded} />
         )}

@@ -44,9 +44,9 @@ export interface IntPage2Kpis {
   stock_added: number;
   restock_cost: number;
   current_stock_balance: number;
-  avg_stock_level: number;
-  stock_turnover_rate: number;
-  supplier_transactions: number;
+  avg_stock_level?: number;
+  stock_turnover_rate?: number;
+  supplier_transactions?: number;
 }
 
 export interface IntProductTableRow {
@@ -65,15 +65,18 @@ export interface IntProductTableRow {
 export interface IntTopProductPoint { product: string; units_sold: number; }
 export interface IntSupplierRankingPoint { name: string; total_spent: number; transactions: number; }
 export interface IntStockByCategoryPoint { category: string; stock_level: number; }
+export interface IntStockLevelTrendPoint { date: string; avg_stock: number; date_str: string; }
+export interface IntRestockHistoryPoint { month: string; supplier: string; qty: number; }
+export interface IntStockAlertGauge { products_below_reorder: number; total_products: number; threshold: number; }
 
 export interface IntPage2 {
   kpis: IntPage2Kpis;
   charts: {
     top_products: IntTopProductPoint[];
-    stock_level_trend: unknown[];
-    restock_history: unknown[];
+    stock_level_trend: IntStockLevelTrendPoint[];
+    restock_history: IntRestockHistoryPoint[];
     supplier_ranking: IntSupplierRankingPoint[];
-    stock_alert_gauge: unknown;
+    stock_alert_gauge: IntStockAlertGauge;
     stock_by_category: IntStockByCategoryPoint[];
   };
   product_table: IntProductTableRow[];

@@ -1,14 +1,82 @@
 @import "tailwindcss";
 
+/* ── Chart glow — used when a signal card deep-links to a chart ──────────────
+   The element gets .chart-glow added via JS; the animation runs once then stops.
+   A short delay lets the page finish rendering before the pulse starts. */
+@keyframes chart-glow-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(0, 27, 183, 0); border-color: transparent; }
+  15%  { box-shadow: 0 0 0 4px rgba(0, 27, 183, 0.25), 0 0 28px rgba(0, 27, 183, 0.18); border-color: rgba(0, 27, 183, 0.55); }
+  45%  { box-shadow: 0 0 0 4px rgba(0, 27, 183, 0.22), 0 0 28px rgba(0, 27, 183, 0.15); border-color: rgba(0, 27, 183, 0.50); }
+  80%  { box-shadow: 0 0 0 2px rgba(0, 27, 183, 0.10), 0 0 10px rgba(0, 27, 183, 0.06); border-color: rgba(0, 27, 183, 0.20); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 27, 183, 0); border-color: transparent; }
+}
+
+.chart-glow {
+  animation: chart-glow-pulse 3.5s ease-in-out 1 forwards;
+  animation-delay: 0.3s;
+}
+
+/* Chart line primary — #001BB7 in light, #60a5fa (blue-400) in dark.
+   Used as stroke/fill in Recharts via "var(--chart-primary)" since Tailwind
+   dark: classes can't be applied to SVG presentation attributes. */
+:root        { --chart-primary: #001BB7; }
+html.dark    { --chart-primary: #60a5fa; }
+
 /* Class-based dark mode — .dark on <html> activates dark: variants */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ── Chart focus modal — entrance animations ─────────────────────────────── */
+@keyframes focus-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes focus-card-in {
+  from { opacity: 0; transform: scale(0.93) translateY(8px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0);   }
+}
+.chart-focus-backdrop {
+  animation: focus-backdrop-in 0.18s ease-out forwards;
+}
+.chart-focus-card {
+  animation: focus-card-in 0.22s ease-out forwards;
+}
+
+/* Force Recharts to fill the focus modal's container height.
+   ResponsiveContainer sets height via inline style; !important overrides it.
+   ResizeObserver then picks up the new height and re-renders the chart. */
+.chart-focus-modal .recharts-responsive-container {
+  height: 500px !important;
+  min-height: 500px !important;
+}
+.chart-focus-modal .recharts-wrapper {
+  height: 500px !important;
+}
+
+/* Focus mode — all text elements bold and white for readability on dark backdrop */
+.chart-focus-modal .recharts-label,
+.chart-focus-modal .recharts-label-list text {
+  fill: rgba(255, 255, 255, 0.90) !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+.chart-focus-modal .recharts-cartesian-axis-tick text,
+.chart-focus-modal .recharts-legend-item-text {
+  fill: rgba(255, 255, 255, 0.65) !important;
+  font-weight: 600 !important;
+}
+.chart-focus-modal .recharts-pie-label-text {
+  fill: rgba(255, 255, 255, 0.90) !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+
 @theme {
-  --color-primary: oklch(0.3706 0.2318 264.2);
-  --color-primary-dark: oklch(0.1413 0.0884 264.2);
-  --color-ghost-white: oklch(0.9865 0.0066 286.28);
-  --color-secondary: oklch(0.6041 0.2164 258.12);
+  --color-primary: oklch(0.3706 0.2318 264.2);       /* Zaffre #001BB7 */
+  --color-primary-dark: oklch(0.1413 0.0884 264.2);  /* Oxford Blue #00022D */
+  --color-ghost-white: oklch(0.9865 0.0066 286.28);  /* Ghost White #FAFAFF */
+  --color-secondary: oklch(0.6041 0.2164 258.12);    /* Azure #1F7AFF */
   --color-secondary-green: oklch(0.8952 0.1426 177.21);
+  --color-aqua: oklch(0.9260 0.1378 174.0);          /* MagByte Aqua #57FFDB — dark mode accent */
 }
 @font-face {
   font-family: "DMSans";

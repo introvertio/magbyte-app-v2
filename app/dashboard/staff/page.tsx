@@ -11,6 +11,7 @@ import {
   Tooltip,
 } from "recharts";
 import { useAdvancedAnalysis } from "@/app/hooks/useDashboardData";
+import { useDashboardStore } from "@/app/stores/dashboard/useDashboardStore";
 import { useGetProfile } from "@/app/components/hooks/user/useGetProfile";
 import { getGreeting, cn } from "@/lib/utils";
 import {
@@ -24,6 +25,7 @@ import {
   GRID_STROKE,
   CHART_COLOURS,
 } from "@/app/components/ui/dashboard/ChartUtils";
+import { EditableGreeting } from "@/app/components/ui/dashboard/EditableGreeting";
 
 // ── Staff leaderboard table ──────────────────────────────────────────────────
 
@@ -61,7 +63,7 @@ function StaffLeaderboard(): React.ReactElement {
                 <tr
                   key={i}
                   className={cn(
-                    "border-b border-gray-50 dark:border-slate-800 hover:bg-blue-50/30 dark:hover:bg-blue-950/30 transition-colors",
+                    "relative border-b border-gray-50 dark:border-slate-800 hover:bg-blue-50/60 dark:hover:bg-blue-950/40 hover:scale-[1.01] hover:z-10 transition-all duration-150",
                     i % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-gray-50/40 dark:bg-slate-800/30"
                   )}
                 >
@@ -124,9 +126,11 @@ function StaffLeaderboard(): React.ReactElement {
 export default function StaffPage(): React.ReactElement {
   const { data: user } = useGetProfile();
   const { page_4 } = useAdvancedAnalysis();
+  const { filterYears, filterMonths, filterDaysOfWeek } = useDashboardStore();
+  const isFiltered = filterYears.length > 0 || filterMonths.length > 0 || filterDaysOfWeek.length > 0;
 
   const greeting = getGreeting();
-  const userName = user?.first_name ? `, ${user.first_name}` : "";
+  const firstName = user?.first_name ?? "there";
   const { kpis, charts } = page_4;
   const achievementNum = parseFloat(kpis.achievement_percentage);
 
@@ -138,11 +142,18 @@ export default function StaffPage(): React.ReactElement {
         <p className="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-0.5">
           Staff Performance
         </p>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{greeting}{userName}</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{greeting}, <EditableGreeting fallbackName={firstName} /></h1>
         <p className="text-sm text-gray-400 dark:text-slate-500 mt-0.5">
           Track how each team member is contributing to your revenue.
         </p>
       </div>
+
+      {isFiltered && (
+        <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-100 dark:border-amber-800/50 text-xs text-amber-700 dark:text-amber-400 font-medium">
+          <span className="size-1.5 rounded-full bg-amber-500 shrink-0" />
+          Staff metrics currently use the full dataset — the active period filter does not apply here yet.
+        </div>
+      )}
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
@@ -180,7 +191,7 @@ export default function StaffPage(): React.ReactElement {
         {charts.branch_performance.length > 0 && (
           <div>
             <SectionHeader title="Revenue by Branch" />
-            <ChartCard title="Which location is generating the most">
+            <ChartCard title="Which location is generating the most" tooltip="Revenue contributed by each branch or location. Longer bar = more revenue from that location. Use this to see which store is your strongest performer.">
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart
                   data={charts.branch_performance}
@@ -209,7 +220,7 @@ export default function StaffPage(): React.ReactElement {
         {charts.staff_sales.length > 0 && (
           <div>
             <SectionHeader title="Revenue by Staff" />
-            <ChartCard title="Individual contribution to total sales (top 10)">
+            <ChartCard title="Individual contribution to total sales (top 10)" tooltip="Shows how much revenue each of your top 10 staff members generated. Use this to reward your best performers and identify who may need support.">
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart
                   data={charts.staff_sales.slice(0, 10)}

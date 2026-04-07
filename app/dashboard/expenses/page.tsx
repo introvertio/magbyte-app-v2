@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   ResponsiveContainer,
   AreaChart, Area,
@@ -11,14 +11,17 @@ import {
   Cell,
 } from "recharts";
 import { useIntermediateAnalysis, useAdvancedAnalysis } from "@/app/hooks/useDashboardData";
+import { filterMonthlyTrend, toDate } from "@/app/hooks/useFilteredData";
 import { useDashboardStore } from "@/app/stores/dashboard/useDashboardStore";
 import { useGetProfile } from "@/app/components/hooks/user/useGetProfile";
-import { getGreeting, formatNaira, cn } from "@/lib/utils";
+import { getGreeting, formatNaira, cn, fmtTableDate } from "@/lib/utils";
 import {
   DashTooltip, GradDefs, GRAD,
   SectionHeader, ChartCard, KpiCard,
-  TICK, GRID_STROKE,
+  TICK, GRID_STROKE, CHART_PRIMARY_VAR,
 } from "@/app/components/ui/dashboard/ChartUtils";
+import { EditableGreeting } from "@/app/components/ui/dashboard/EditableGreeting";
+import { useRegisterPageFilters } from "@/app/hooks/useRegisterPageFilters";
 import type { IntermediateAnalysisResult } from "@/app/types/intermediateAnalysis";
 import type { AdvancedAnalysisResult } from "@/app/types/advancedAnalysis";
 
@@ -30,6 +33,25 @@ interface WaterfallStep {
   type: "start" | "decrease" | "end";
 }
 interface WaterfallObj { steps?: WaterfallStep[] }
+
+function matchesDateFilters(
+  dateStr: string,
+  filterYears: number[],
+  filterMonths: number[],
+  filterDaysOfWeek: number[],
+): boolean {
+  const d = toDate(dateStr);
+  if (Number.isNaN(d.getTime())) return false;
+  if (filterYears.length > 0 && !filterYears.includes(d.getFullYear())) return false;
+  if (filterMonths.length > 0 && !filterMonths.includes(d.getMonth())) return false;
+  if (filterDaysOfWeek.length > 0 && !filterDaysOfWeek.includes(d.getDay())) return false;
+  return true;
+}
+
+function parseCurrency(value: string): number {
+  const numeric = Number(value.replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(numeric) ? numeric : 0;
+}
 
 // ── Shared waterfall chart component ─────────────────────────────────────────
 // Renders the Operating Profit waterfall (Gross Profit → expenses → Op. Profit)
@@ -53,7 +75,7 @@ function OperatingProfitWaterfall({
   }));
 
   return (
-    <ChartCard title="Where did gross profit go?" subtitle="Operating Profit Waterfall" className="col-span-full lg:col-span-2">
+    <ChartCard title="Where did gross profit go?" subtitle="Operating Profit Waterfall" tooltip="Starts at gross profit and subtracts each operating cost one by one. The final bar is your operating profit — what the business truly earned after all expenses." className="col-span-full lg:col-span-2">
       <ResponsiveContainer width="100%" height={220}>
         <BarChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
           <GradDefs />
@@ -81,20 +103,45 @@ function OperatingProfitWaterfall({
 
 // ── Expense detail table — Intermediate ──────────────────────────────────────
 
-function IntExpenseTable(): React.ReactElement {
-  const { page_4 } = useIntermediateAnalysis();
+function IntExpenseTable({ allRows }: { allRows: IntermediateAnalysisResult["page_4"]["expense_detail_table"] }): React.ReactElement {
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 15;
-  const rows = page_4.expense_detail_table;
+
+  const [paidToFilters, setPaidToFilters] = useState<string[]>([]);
+  const togglePaidTo = (v: string): void =>
+    setPaidToFilters((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]);
+
+  const paidToOptions = useMemo(
+    () => [...new Set(allRows.map((r) => r.paid_to).filter(Boolean))].sort(),
+    [allRows]
+  );
+  const rows = paidToFilters.length > 0
+    ? allRows.filter((r) => paidToFilters.includes(r.paid_to))
+    : allRows;
+
   const totalPages = Math.ceil(rows.length / PAGE_SIZE);
   const slice = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  React.useEffect(() => { setPage(0); }, [paidToFilters]);
+
+  // Register Paid To filter with the global FilterPane
+  useRegisterPageFilters([
+    {
+      id: "paidto",
+      label: "Paid To",
+      options: paidToOptions,
+      selected: paidToFilters,
+      onToggle: togglePaidTo,
+      onClearAll: () => setPaidToFilters([]),
+    },
+  ]);
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-50 dark:border-slate-800">
         <p className="text-sm font-semibold text-gray-800 dark:text-slate-100">Expense Log</p>
         <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
-          All recorded expense transactions · {rows.length} total rows
+          {rows.length} of {allRows.length} expense transactions
         </p>
       </div>
       <div className="overflow-x-auto">
@@ -108,8 +155,8 @@ function IntExpenseTable(): React.ReactElement {
           </thead>
           <tbody>
             {slice.map((row, i) => (
-              <tr key={i} className={cn("border-b border-gray-50 dark:border-slate-800 hover:bg-blue-50/30 dark:hover:bg-blue-950/30 transition-colors", i % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-gray-50/40 dark:bg-slate-800/30")}>
-                <td className="px-4 py-2.5 text-gray-400 dark:text-slate-500 whitespace-nowrap tabular-nums">{String(row.date).slice(0, 10)}</td>
+              <tr key={i} className={cn("relative border-b border-gray-50 dark:border-slate-800 hover:bg-blue-50/60 dark:hover:bg-blue-950/40 hover:scale-[1.01] hover:z-10 transition-all duration-150", i % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-gray-50/40 dark:bg-slate-800/30")}>
+                <td className="px-4 py-2.5 text-gray-400 dark:text-slate-500 whitespace-nowrap tabular-nums">{fmtTableDate(row.date)}</td>
                 <td className="px-4 py-2.5 font-semibold text-gray-800 dark:text-slate-200 tabular-nums">{formatNaira(row.amount)}</td>
                 <td className="px-4 py-2.5 text-gray-700 dark:text-slate-300">{row.paid_to}</td>
                 <td className="px-4 py-2.5 text-gray-400 dark:text-slate-500 max-w-[200px] truncate">{row.notes || "—"}</td>
@@ -133,19 +180,56 @@ function IntExpenseTable(): React.ReactElement {
 
 // ── Expense detail table — Advanced ──────────────────────────────────────────
 
-function AdvExpenseTable(): React.ReactElement {
-  const { page_5 } = useAdvancedAnalysis();
+function AdvExpenseTable({ allRows }: { allRows: AdvancedAnalysisResult["page_5"]["expense_detail_table"] }): React.ReactElement {
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 15;
-  const rows = page_5.expense_detail_table;
+
+  const [typeFilters, setTypeFilters]   = useState<string[]>([]);
+  const [branchFilters, setBranchFilters] = useState<string[]>([]);
+  const toggleType   = (v: string): void =>
+    setTypeFilters((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]);
+  const toggleBranch = (v: string): void =>
+    setBranchFilters((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]);
+
+  const typeOptions   = useMemo(() => [...new Set(allRows.map((r) => r.expense_type).filter(Boolean))].sort(), [allRows]);
+  const branchOptions = useMemo(() => [...new Set(allRows.map((r) => r.branch).filter(Boolean))].sort(), [allRows]);
+
+  const rows = allRows.filter((r) => {
+    if (typeFilters.length > 0   && !typeFilters.includes(r.expense_type))   return false;
+    if (branchFilters.length > 0 && !branchFilters.includes(r.branch)) return false;
+    return true;
+  });
+
   const totalPages = Math.ceil(rows.length / PAGE_SIZE);
   const slice = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  React.useEffect(() => { setPage(0); }, [typeFilters, branchFilters]);
+
+  // Register Expense Type + Branch filters with the global FilterPane
+  useRegisterPageFilters([
+    {
+      id: "type",
+      label: "Expense Type",
+      options: typeOptions,
+      selected: typeFilters,
+      onToggle: toggleType,
+      onClearAll: () => setTypeFilters([]),
+    },
+    {
+      id: "branch",
+      label: "Branch",
+      options: branchOptions,
+      selected: branchFilters,
+      onToggle: toggleBranch,
+      onClearAll: () => setBranchFilters([]),
+    },
+  ]);
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-50 dark:border-slate-800">
         <p className="text-sm font-semibold text-gray-800 dark:text-slate-100">Expense Log</p>
-        <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">All recorded expense transactions · {rows.length} total rows</p>
+        <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{rows.length} of {allRows.length} expense transactions</p>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
@@ -158,8 +242,8 @@ function AdvExpenseTable(): React.ReactElement {
           </thead>
           <tbody>
             {slice.map((row, i) => (
-              <tr key={i} className={cn("border-b border-gray-50 dark:border-slate-800 hover:bg-blue-50/30 dark:hover:bg-blue-950/30 transition-colors", i % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-gray-50/40 dark:bg-slate-800/30")}>
-                <td className="px-4 py-2.5 text-gray-400 dark:text-slate-500 whitespace-nowrap">{row.date}</td>
+              <tr key={i} className={cn("relative border-b border-gray-50 dark:border-slate-800 hover:bg-blue-50/60 dark:hover:bg-blue-950/40 hover:scale-[1.01] hover:z-10 transition-all duration-150", i % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-gray-50/40 dark:bg-slate-800/30")}>
+                <td className="px-4 py-2.5 text-gray-400 dark:text-slate-500 whitespace-nowrap">{fmtTableDate(row.date)}</td>
                 <td className="px-4 py-2.5 text-gray-600 dark:text-slate-400">{row.branch}</td>
                 <td className="px-4 py-2.5">
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-100 dark:border-amber-800/50">{row.expense_type}</span>
@@ -205,7 +289,7 @@ function IntContent({ data }: { data: IntermediateAnalysisResult["page_4"] }): R
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
         {charts.expense_trend.length > 0 && (
-          <ChartCard title="How your spending changed over time" subtitle="Expense Trend">
+          <ChartCard title="How your spending changed over time" subtitle="Expense Trend" tooltip="Shows how much you spent over time. A rising trend means costs are going up — watch this alongside your sales to make sure expenses don't outpace revenue.">
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={charts.expense_trend} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
                 <GradDefs />
@@ -228,7 +312,7 @@ function IntContent({ data }: { data: IntermediateAnalysisResult["page_4"] }): R
         )}
 
         {charts.expense_vs_sales.length > 0 && (
-          <ChartCard title="Are your expenses eating into your sales?" subtitle="Expenses vs Sales">
+          <ChartCard title="Are your expenses eating into your sales?" subtitle="Expenses vs Sales" tooltip="Bars = expenses per month. Line = sales. You want a big gap between them. If the bars start approaching the line, your profit margin is being squeezed.">
             <ResponsiveContainer width="100%" height={220}>
               <ComposedChart data={charts.expense_vs_sales} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
                 <GradDefs />
@@ -238,7 +322,7 @@ function IntContent({ data }: { data: IntermediateAnalysisResult["page_4"] }): R
                 <Tooltip content={<DashTooltip valueFormatter={(v) => formatNaira(v)} />} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 <Bar dataKey="expenses" name="Expenses" fill={`url(#${GRAD.amberV})`} radius={[4, 4, 0, 0]} />
-                <Line type="monotone" dataKey="sales" name="Sales" stroke="#001BB7" strokeWidth={2.5} dot={false} />
+                <Line type="monotone" dataKey="sales" name="Sales" stroke={CHART_PRIMARY_VAR} strokeWidth={2.5} dot={false} />
               </ComposedChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -273,7 +357,7 @@ function AdvContent({ data }: { data: AdvancedAnalysisResult["page_5"] }): React
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
         {charts.expense_trend.length > 0 && (
-          <ChartCard title="How your spending changed over time" subtitle="Expense Trend">
+          <ChartCard title="How your spending changed over time" subtitle="Expense Trend" tooltip="Shows how much you spent over time. A rising trend means costs are going up — watch this alongside your sales to make sure expenses don't outpace revenue.">
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={charts.expense_trend} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
                 <GradDefs />
@@ -296,7 +380,7 @@ function AdvContent({ data }: { data: AdvancedAnalysisResult["page_5"] }): React
         )}
 
         {charts.expense_vs_sales.length > 0 && (
-          <ChartCard title="Are your expenses eating into your sales?" subtitle="Expenses vs Sales">
+          <ChartCard title="Are your expenses eating into your sales?" subtitle="Expenses vs Sales" tooltip="Bars = expenses per month. Line = sales. You want a big gap between them. If the bars start approaching the line, your profit margin is being squeezed.">
             <ResponsiveContainer width="100%" height={220}>
               <ComposedChart data={charts.expense_vs_sales} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
                 <GradDefs />
@@ -306,7 +390,7 @@ function AdvContent({ data }: { data: AdvancedAnalysisResult["page_5"] }): React
                 <Tooltip content={<DashTooltip valueFormatter={(v) => fromM(v)} />} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 <Bar dataKey="expenses" name="Expenses" fill={`url(#${GRAD.amberV})`} radius={[4, 4, 0, 0]} />
-                <Line type="monotone" dataKey="sales" name="Sales" stroke="#001BB7" strokeWidth={2.5} dot={false} />
+                <Line type="monotone" dataKey="sales" name="Sales" stroke={CHART_PRIMARY_VAR} strokeWidth={2.5} dot={false} />
               </ComposedChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -314,7 +398,7 @@ function AdvContent({ data }: { data: AdvancedAnalysisResult["page_5"] }): React
 
         {/* Expense by category donut */}
         {(charts.expense_by_category as Array<{ category: string; amount: number }>).length > 0 && (
-          <ChartCard title="Where is most of your money going?" subtitle="Expense by Category">
+          <ChartCard title="Where is most of your money going?" subtitle="Expense by Category" tooltip="Breaks down your total expenses by category. The longest bar = your biggest cost area. Focus here first to reduce spending.">
             <div className="flex items-center gap-6">
               <ResponsiveContainer width={160} height={160}>
                 <BarChart
@@ -357,29 +441,147 @@ function AdvContent({ data }: { data: AdvancedAnalysisResult["page_5"] }): React
 
 export default function ExpensesPage(): React.ReactElement {
   const { data: user } = useGetProfile();
-  const { devTier } = useDashboardStore();
+  const { devTier, filterYears, filterMonths, filterDaysOfWeek } = useDashboardStore();
 
   const intData = useIntermediateAnalysis();
   const advData = useAdvancedAnalysis();
+  const isFiltered = filterYears.length > 0 || filterMonths.length > 0 || filterDaysOfWeek.length > 0;
 
   const greeting = getGreeting();
-  const userName = user?.first_name ? `, ${user.first_name}` : "";
+  const firstName = user?.first_name ?? "there";
+
+  const filteredIntPage4 = useMemo(() => {
+    const rows = intData.page_4.expense_detail_table.filter((r) =>
+      matchesDateFilters(r.date, filterYears, filterMonths, filterDaysOfWeek),
+    );
+    const expenseTrend = intData.page_4.charts.expense_trend.filter((p) =>
+      matchesDateFilters(p.date, filterYears, filterMonths, filterDaysOfWeek),
+    );
+    const expenseVsSales = filterMonthlyTrend(
+      intData.page_4.charts.expense_vs_sales,
+      filterYears,
+      filterMonths,
+    );
+    const expenseMovingAvg = filterMonthlyTrend(
+      intData.page_4.charts.expense_moving_avg,
+      filterYears,
+      filterMonths,
+    );
+
+    const totalExpenses = rows.reduce((sum, r) => sum + r.amount, 0);
+    const monthKeySet = new Set(rows.map((r) => {
+      const d = toDate(r.date);
+      return `${d.getFullYear()}-${d.getMonth()}`;
+    }));
+    const salesTotal = expenseVsSales.reduce((sum, r) => sum + r.sales, 0);
+    const monthlyAvg = monthKeySet.size > 0 ? totalExpenses / monthKeySet.size : 0;
+    const operatingProfit = salesTotal - totalExpenses;
+    const expenseShare = salesTotal > 0 ? (totalExpenses / salesTotal) * 100 : 0;
+    const expenseToSales = salesTotal > 0 ? (totalExpenses / salesTotal) * 100 : 0;
+    const profitMargin = salesTotal > 0 ? (operatingProfit / salesTotal) * 100 : 0;
+
+    return {
+      ...intData.page_4,
+      kpis: {
+        ...intData.page_4.kpis,
+        total_expenses: totalExpenses,
+        operating_profit: operatingProfit,
+        net_profit: operatingProfit,
+        expense_share: Number(expenseShare.toFixed(1)),
+        expense_to_sales_ratio: Number(expenseToSales.toFixed(1)),
+        monthly_avg_expense: monthlyAvg,
+        ytd_expenses: totalExpenses,
+        operating_profit_margin: Number(profitMargin.toFixed(1)),
+        net_profit_margin: Number(profitMargin.toFixed(1)),
+      },
+      charts: {
+        ...intData.page_4.charts,
+        expense_trend: expenseTrend,
+        expense_vs_sales: expenseVsSales,
+        expense_moving_avg: expenseMovingAvg,
+      },
+      expense_detail_table: rows,
+    };
+  }, [intData.page_4, filterYears, filterMonths, filterDaysOfWeek]);
+
+  const filteredAdvPage5 = useMemo(() => {
+    const rows = advData.page_5.expense_detail_table.filter((r) =>
+      matchesDateFilters(r.date, filterYears, filterMonths, filterDaysOfWeek),
+    );
+    const expenseTrend = advData.page_5.charts.expense_trend.filter((p) =>
+      matchesDateFilters(p.date, filterYears, filterMonths, filterDaysOfWeek),
+    );
+    const expenseVsSales = filterMonthlyTrend(
+      advData.page_5.charts.expense_vs_sales,
+      filterYears,
+      filterMonths,
+    );
+
+    const totalExpenses = rows.reduce((sum, r) => sum + parseCurrency(r.amount), 0);
+    const monthKeySet = new Set(rows.map((r) => {
+      const d = toDate(r.date);
+      return `${d.getFullYear()}-${d.getMonth()}`;
+    }));
+    const salesTotal = expenseVsSales.reduce((sum, r) => sum + (r.sales * 1_000_000), 0);
+    const monthlyAvg = monthKeySet.size > 0 ? totalExpenses / monthKeySet.size : 0;
+    const operatingProfit = salesTotal - totalExpenses;
+    const expenseShare = salesTotal > 0 ? (totalExpenses / salesTotal) * 100 : 0;
+
+    const byType: Record<string, number> = {};
+    rows.forEach((r) => {
+      byType[r.expense_type] = (byType[r.expense_type] ?? 0) + parseCurrency(r.amount);
+    });
+    const expenseByCategory = Object.entries(byType)
+      .map(([category, amount]) => ({ category, amount: amount / 1_000_000 }))
+      .sort((a, b) => b.amount - a.amount);
+    const largestCategory = expenseByCategory[0]?.category ?? advData.page_5.kpis.largest_expense_category;
+
+    return {
+      ...advData.page_5,
+      kpis: {
+        ...advData.page_5.kpis,
+        total_expenses: formatNaira(totalExpenses),
+        operating_profit: formatNaira(operatingProfit),
+        expense_share: `${expenseShare.toFixed(1)}%`,
+        expense_transactions: rows.length,
+        largest_expense_category: largestCategory,
+        monthly_avg_expense: formatNaira(monthlyAvg),
+        ytd_expenses: formatNaira(totalExpenses),
+      },
+      charts: {
+        ...advData.page_5.charts,
+        expense_trend: expenseTrend,
+        expense_vs_sales: expenseVsSales,
+        expense_by_category: expenseByCategory,
+      },
+      expense_detail_table: rows,
+    };
+  }, [advData.page_5, filterYears, filterMonths, filterDaysOfWeek]);
 
   return (
     <div className="flex flex-col gap-6 p-6 max-w-7xl mx-auto w-full">
       <div>
         <p className="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-0.5">Expenses</p>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{greeting}{userName}</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{greeting}, <EditableGreeting fallbackName={firstName} /></h1>
         <p className="text-sm text-gray-400 dark:text-slate-500 mt-0.5">Here is a full breakdown of your operating costs.</p>
       </div>
 
+      {isFiltered && (
+        <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-800/50 text-xs text-blue-700 dark:text-blue-300 font-medium">
+          <span className="size-1.5 rounded-full bg-blue-500 shrink-0" />
+          Showing filtered expense data for selected period.
+        </div>
+      )}
+
       <SectionHeader title="Key Numbers" />
-      {devTier === "intermediate" && <IntContent data={intData.page_4} />}
-      {devTier === "advanced"     && <AdvContent data={advData.page_5} />}
+      {devTier === "intermediate" && <IntContent data={filteredIntPage4} />}
+      {devTier === "advanced"     && <AdvContent data={filteredAdvPage5} />}
 
       <div>
         <SectionHeader title="Expense Records" />
-        {devTier === "advanced" ? <AdvExpenseTable /> : <IntExpenseTable />}
+        {devTier === "advanced"
+          ? <AdvExpenseTable allRows={filteredAdvPage5.expense_detail_table} />
+          : <IntExpenseTable allRows={filteredIntPage4.expense_detail_table} />}
       </div>
     </div>
   );

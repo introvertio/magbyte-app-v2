@@ -6,7 +6,7 @@ import basicData from "./basic_analysis_output.json";
 import execSummaryData from "./executive_summary_output_all.json";
 import execSummaryIntermediateData from "./executive_summary_intermediate.json";
 import execSummaryAdvancedData from "./executive_summary_advanced.json";
-import intermediateData from "./intermediate_analysis_output.json";
+import intermediateData from "./intermediate_dashboard_data.json";
 import advancedData from "./advanced_analysis_output.json";
 import type { BasicAnalysisResult } from "@/app/types/basicAnalysis";
 import type { ExecutiveSummaryResult } from "@/app/types/executiveSummary";

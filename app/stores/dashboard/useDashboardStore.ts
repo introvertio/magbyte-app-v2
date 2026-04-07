@@ -24,6 +24,12 @@ interface DashboardState {
   toggleSideRail: () => void;
   setSideRailExpanded: (expanded: boolean) => void;
 
+  filterPaneOpen: boolean;
+  toggleFilterPane: () => void;
+  setFilterPaneOpen: (open: boolean) => void;
+  focusModeOpen: boolean;
+  setFocusModeOpen: (open: boolean) => void;
+
   // ── Dev-mode tier switcher ─────────────────────────────────────────────────
   devTier: DashboardTier;
   setDevTier: (tier: DashboardTier) => void;
@@ -57,6 +63,13 @@ export const useDashboardStore = create<DashboardState>()(
         set((state) => ({ sideRailExpanded: !state.sideRailExpanded })),
       setSideRailExpanded: (expanded) => set({ sideRailExpanded: expanded }),
 
+      filterPaneOpen: false,
+      toggleFilterPane: () =>
+        set((state) => ({ filterPaneOpen: !state.filterPaneOpen })),
+      setFilterPaneOpen: (open) => set({ filterPaneOpen: open }),
+      focusModeOpen: false,
+      setFocusModeOpen: (open) => set({ focusModeOpen: open }),
+
       devTier: "basic",
       setDevTier: (devTier) => set({ devTier }),
 
@@ -69,6 +82,16 @@ export const useDashboardStore = create<DashboardState>()(
     }),
     {
       name: "dashboard-prefs",
+      partialize: (state) => ({
+        filterYears: state.filterYears,
+        filterMonths: state.filterMonths,
+        filterDaysOfWeek: state.filterDaysOfWeek,
+        sideRailExpanded: state.sideRailExpanded,
+        filterPaneOpen: state.filterPaneOpen,
+        devTier: state.devTier,
+        devIndustry: state.devIndustry,
+        theme: state.theme,
+      }),
     }
   )
 );

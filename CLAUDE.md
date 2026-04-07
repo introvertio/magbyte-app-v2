@@ -54,11 +54,13 @@ New users → `/dashboard/user/update` · Returning → `/dashboard`
 | `/dashboard/staff` | ✅ Advanced+ |
 | `/dashboard/user/update` | ✅ Two-step onboarding |
 
-**Shell:** `TopBar.tsx` · `SideRail.tsx` (56/208px) · `BottomNav.tsx` · `ThemeApplier.tsx`
-**Store:** `useDashboardStore.ts` — period, sideRailExpanded, theme, devTier (persisted: `"dashboard-prefs"`)
+**Shell:** `TopBar.tsx` · `SideRail.tsx` (56/208px, tier-switcher only — no nav links) · `BottomNav.tsx` · `ThemeApplier.tsx`
+**TopBar nav:** center pills with icons (Home/Banknotes/ShoppingBag/Users/ReceiptPercent/UserGroup/ArrowTrendingUp) + back/forward buttons left of pills.
+**Store:** `useDashboardStore.ts` — period, sideRailExpanded, filterPaneOpen, theme, devTier (persisted: `"dashboard-prefs"`)
 **Mock data:** `app/mock/` — `basic_analysis_output.json` · `executive_summary_output_all.json` · `intermediate_analysis_output.json` · `advanced_analysis_output.json`
 **Types:** `app/types/basicAnalysis.ts` · `app/types/executiveSummary.ts`
 **Hooks:** `useDashboardData.ts` (swap point for real API) · `useFilteredData.ts` (period-aware — use on Sales/Products)
+**Shared UI:** `EditableGreeting` (`app/components/ui/dashboard/EditableGreeting.tsx`) — used on every page. Saves to `localStorage` key `"greeting-display-name"`. Do not duplicate this logic in page files.
 
 ## Tier system
 
@@ -72,10 +74,12 @@ Prod tier: `user.tier` from API. Dev tier: `devTier` in Zustand, set via SideRai
 Tier is **never selected by the user** — n8n auto-detects from Excel sheet count.
 
 ## Period filter
-Current: All / Wk / Mo / Yr buttons in TopBar. Planned: expand to Year/Quarter/Month/Week/Day dropdowns (build in that order).
+Current: FilterPane Year / Month / Day of Week checkboxes (TopBar period buttons removed).
 **Rule:** Always use `useFilteredData()` on pages showing page_1 or page_2 data. Never call `useBasicAnalysis()` directly on those pages — filter silently breaks.
 Cockpit + Forecast always use full dataset; show amber notice when a filter is active.
-Dropdowns must only show periods that exist in the dataset. Day picker anchored to `metadata.date_range`.
+Period filters should affect KPIs + charts + tables where date-bearing data exists.
+Staff page currently has no date dimension in payload; show amber notice when filters are active.
+Dropdowns should only show periods that exist in the dataset. Day picker anchored to `metadata.date_range`.
 
 ## Currency
 Never hardcode ₦. Use `formatCurrency(value, currency)` — currency stored in user profile.
@@ -85,12 +89,15 @@ Compact notation: 1,200,000 → 1.2M · 45,000 → 45K
 ## Dark mode
 Class-based via `@custom-variant dark` in `globals.css`. `.dark` on `<html>` toggled by `ThemeApplier`.
 All pages have full dark mode. Use `dark:` Tailwind utilities alongside existing classes.
-ChartCard: `bg-white/80 backdrop-blur-sm` · DashTooltip: `bg-white/90 backdrop-blur-md`
+**Brand palette (globals.css `@theme`):** `--color-primary` #001BB7 · `--color-primary-dark` #00022D · `--color-ghost-white` #FAFAFF · `--color-secondary` #1F7AFF · `--color-aqua` #57FFDB (dark mode accent).
+Full guidelines: `Cowork - MagByte/Context/MagByte Brand Guidelines.pdf`
 
 ## UX principles (non-negotiable)
-- **Greeting:** "Good morning/afternoon/evening, [First Name]" on every page
-- **Charts as filters:** clicking a chart element filters the rest of that page only — never bleeds across pages
-- **Focus mode:** click chart → expands full-screen, others blur; Escape to exit
+- **Greeting:** "Good morning/afternoon/evening, [Name]" on every page. Use `<EditableGreeting fallbackName={firstName} />` — never inline the editable logic. Name is user-editable via pencil-on-hover icon; persisted in localStorage.
+- **Charts as filters:** clicking a chart element filters the rest of that page only — never bleeds across pages. Pattern: `Cell onClick` with `opacity` + `stroke` selection indicator. `ChartFilterBadges` component shows active filters with × to clear.
+- **Signal deep-link:** signal cards on cockpit use `?glow=chart_id1,chart_id2` → target page scrolls + applies `.chart-glow` CSS pulse. `Signal` type has `chart_refs?: string[]`. `ChartCard` accepts `chartId` + `glowing` props.
+- **Date format on x-axis + tooltips:** `fmtAxisDate` → "13 Mar 26" (`year: "2-digit"`). `DashTooltip` accepts `labelFormatter` prop — pass it there, not on `<Tooltip>`. Use `minTickGap={70}` to prevent label crowding.
+- **Focus mode:** `ChartCard` accepts `focusable` + optional `focusContent` props. Clicking "Focus" opens a full-screen portal modal at `z-[300]`. Modal is transparent with title + chart on `bg-black/70 backdrop-blur-md`. Insets itself via `sideRailExpanded` + `filterPaneOpen`. `focusContent` must use `<ResponsiveContainer height={500}>` — NOT 200. Using 200 causes a coordinate mismatch (Recharts maps tooltips to a 200px SVG stretched to 500px display; tooltips only fire in the top 40%). The FilterPane tab button and pane are at `z-[350]` so they remain clickable and usable while a focus modal is open. Currently wired: all 4 BasicContent charts in Sales.
 - **Tooltips:** every chart + KPI card has a `?` icon — plain ELI5 language
 - **KPI colour signals:** 🟢 improving · 🟡 stable (±2%) · 🔴 declining — always show, never omit
 - **Loading copy:** show live data facts while loading ("Your store has 200 entries")
@@ -133,13 +140,25 @@ formatDate(date)
 - Never commit to `main` directly
 - Always state proposed commit message before committing
 
+## FilterPane — architecture notes
+- Right edge tab button: `z-[350]`, `w-8` at rest, `hover:w-24` expands left revealing "Filters" label (inner `<span>` with `overflow-hidden max-w-0 group-hover:max-w-[4rem]`). Badge sits outside the overflow-hidden span so it's never clipped.
+- Pane div: `z-[350]` — renders above the focus modal (`z-[300]`), so users can apply filters without closing focus mode.
+- Period section (formerly "Date Range") has Year / Month / Day of Week sub-groups.
+- `TIER_FILTER_GROUPS` in `FilterPane.tsx` controls which filter groups appear per tier. Basic now includes `payment`. Pages that don't register a group (Cockpit, Forecast for `payment`) auto-show "Not available on this page".
+- Payment method filter for Basic tier lives in the FilterPane only — not as inline chips on the page.
+- Pane top behavior: normal mode sits under TopBar; in chart focus mode, pane background extends to top (no top-right gap) while content remains offset below TopBar.
+
 ## Pending (not yet built)
+- **Focus mode — roll out** — wire `focusable` + `focusContent` (with `height={500}`) to all ChartCards across Products, Customers, Expenses, Forecast, Staff. Exclude Cockpit (`/dashboard`).
+- **Chart-as-filter** — done: Basic Sales, Int Sales (category + payment + staff). Still needed: Products Basic category bar, Products (Int), Customers, Expenses charts
+- **Period filters** — wired on Sales Basic, Products Basic, Customers Intermediate, Expenses Intermediate/Advanced. Staff shows amber "not applied" notice (non-date payload).
+- **Signal `chart_refs`** — added to basic exec summary mock. Int + Adv signals still need `chart_refs` populated
 - Stock Movement, Customers (Intermediate) — need Python mock data scripts first
 - Debt Management, Enterprise Sales (Advanced) — same
-- Chart focus/expand mode + chart-as-filter interaction
 - Download PDF / report
 - Thumbs up/down on AI signal cards
 - Wire real API (when n8n reactivated)
+- Delete unused `app/components/ui/dashboard/PageFilterBar.tsx`
 
 ## Security — deferred to post-MVP
 - Fix AuthGuard: currently never rejects invalid tokens

@@ -18,6 +18,13 @@ export function formatPercent(value: number): string {
   return `${sign}${value.toFixed(1)}%`;
 }
 
+/** Formats an ISO date string for table cells — "11 Mar 2026" */
+export function fmtTableDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return "—";
+  const d = new Date(String(dateStr));
+  return isNaN(d.getTime()) ? String(dateStr) : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+
 /** Returns time-of-day greeting based on current hour */
 export function getGreeting(): string {
   const hour = new Date().getHours();

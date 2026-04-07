@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   ResponsiveContainer,
@@ -42,6 +42,8 @@ import {
   BoltIcon,
   CalendarIcon,
   ChartBarIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
 } from "@heroicons/react/24/outline";
 import {
   DashTooltip,
@@ -52,7 +54,15 @@ import {
   ChartCard,
   TICK,
   GRID_STROKE,
+  CHART_PRIMARY_VAR,
 } from "@/app/components/ui/dashboard/ChartUtils";
+import { EditableGreeting } from "@/app/components/ui/dashboard/EditableGreeting";
+
+// Formats "YYYY-MM-DD" dates for x-axis labels and tooltips: "13 Mar 26"
+function fmtAxisDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  return isNaN(d.getTime()) ? dateStr : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit" });
+}
 
 // ── Colour helpers ──────────────────────────────────────────────────────────
 
@@ -215,10 +225,20 @@ function VitalCard({ label, value, sub, delta, sentiment }: {
 function SignalCard({ signal }: { signal: Signal }): React.ReactElement {
   const cfg = SIGNAL_CONFIG[signal.type] ?? SIGNAL_CONFIG.warning;
   const Icon = cfg.icon;
-  const targetRoute = PAGE_ROUTE[signal.linked_page];
+  const baseRoute = PAGE_ROUTE[signal.linked_page];
+
+  // Build URL: append ?glow=chart1,chart2 so the target page can highlight charts
+  const targetRoute = baseRoute
+    ? signal.chart_refs?.length
+      ? `${baseRoute}?glow=${signal.chart_refs.join(",")}`
+      : baseRoute
+    : null;
 
   return (
-    <div className={cn("rounded-2xl p-4 flex gap-3", cfg.bg, cfg.border)}>
+    <div className={cn(
+      "rounded-2xl p-4 flex gap-3 transition-all duration-200 hover:shadow-sm",
+      cfg.bg, cfg.border,
+    )}>
       <div className={cn("size-7 rounded-xl flex items-center justify-center shrink-0 mt-0.5",
         signal.type === "alert" ? "bg-red-100 dark:bg-red-900/40" : signal.type === "positive" ? "bg-emerald-100 dark:bg-emerald-900/40" : "bg-amber-100 dark:bg-amber-900/40"
       )}>
@@ -228,7 +248,7 @@ function SignalCard({ signal }: { signal: Signal }): React.ReactElement {
         <p className="text-sm font-semibold text-gray-800 dark:text-slate-200 leading-snug">{signal.headline}</p>
         <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 leading-relaxed">{signal.body}</p>
         {targetRoute && (
-          <Link href={targetRoute} className="inline-flex items-center gap-1 text-xs font-semibold text-primary mt-2 hover:underline">
+          <Link href={targetRoute} className="inline-flex items-center gap-1 text-xs font-semibold text-primary dark:text-blue-400 mt-2 hover:underline">
             See more <ArrowRightIcon className="size-3" />
           </Link>
         )}
@@ -257,7 +277,7 @@ function PlayItem({ play }: { play: Play }): React.ReactElement {
 function ParetoBarChart({ chart }: { chart: ChartData }): React.ReactElement {
   const data = (chart.data as ParetoBarItem[]).filter((d) => d.name !== "All Others");
   return (
-    <ChartCard subtitle={chart.subtitle} title={chart.dynamic_title}>
+    <ChartCard subtitle={chart.subtitle} title={chart.dynamic_title} tooltip="Your top products by revenue. A small number of items usually drive most of your sales — these are the ones to always keep in stock.">
       <ResponsiveContainer width="100%" height={200}>
         <BarChart data={data} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
           <GradDefs />
@@ -274,7 +294,7 @@ function ParetoBarChart({ chart }: { chart: ChartData }): React.ReactElement {
 function CategoryDonutChart({ chart }: { chart: ChartData }): React.ReactElement {
   const data = (chart.data as CategoryDonutItem[]).filter((d) => d.revenue > 0);
   return (
-    <ChartCard subtitle={chart.subtitle} title={chart.dynamic_title}>
+    <ChartCard subtitle={chart.subtitle} title={chart.dynamic_title} tooltip="How your total revenue is split across product categories. The bigger the slice, the more that category contributes to your income.">
       <div className="flex items-center gap-4">
         <ResponsiveContainer width={160} height={160}>
           <PieChart>
@@ -303,18 +323,18 @@ function CategoryDonutChart({ chart }: { chart: ChartData }): React.ReactElement
 function RevenueTrendChart({ chart }: { chart: ChartData }): React.ReactElement {
   const data = chart.data as RevenueTrendItem[];
   return (
-    <ChartCard subtitle={chart.subtitle} title={chart.dynamic_title} fullWidth>
+    <ChartCard subtitle={chart.subtitle} title={chart.dynamic_title} tooltip="How your total sales trended over time. An upward curve means the business is growing. A flat or falling line means something needs attention." fullWidth>
       <ResponsiveContainer width="100%" height={180}>
         <AreaChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
           <GradDefs />
           <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
-          <XAxis dataKey="date" tick={TICK} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+          <XAxis dataKey="date" tickFormatter={fmtAxisDate} tick={TICK} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={70} />
           <YAxis tickFormatter={(v) => formatNaira(v)} tick={TICK} axisLine={false} tickLine={false} width={62} />
-          <Tooltip content={<DashTooltip valueFormatter={formatNaira} />} />
+          <Tooltip content={<DashTooltip valueFormatter={formatNaira} labelFormatter={fmtAxisDate} />} />
           <Area
             type="monotone"
             dataKey="sales"
-            stroke="#001BB7"
+            stroke={CHART_PRIMARY_VAR}
             strokeWidth={2.5}
             fill={`url(#${GRAD.blueArea})`}
             dot={false}
@@ -330,7 +350,7 @@ function RevenueTrendChart({ chart }: { chart: ChartData }): React.ReactElement 
 function ExpenseVsSalesChart({ chart }: { chart: ChartData }): React.ReactElement {
   const data = chart.data as ExpenseVsSalesItem[];
   return (
-    <ChartCard subtitle={chart.subtitle} title={chart.dynamic_title} fullWidth>
+    <ChartCard subtitle={chart.subtitle} title={chart.dynamic_title} tooltip="Bars show your expenses each month, line shows sales. You want a big gap between them. If the bars grow close to the line, your profit margin is shrinking." fullWidth>
       <ResponsiveContainer width="100%" height={180}>
         <ComposedChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
           <GradDefs />
@@ -351,7 +371,7 @@ function RepeatVsNewChart({ chart }: { chart: ChartData }): React.ReactElement {
   const data = chart.data as RepeatVsNewItem[];
   const COLOURS = ["#001BB7", "#10b981", "#f59e0b"];
   return (
-    <ChartCard subtitle={chart.subtitle} title={chart.dynamic_title}>
+    <ChartCard subtitle={chart.subtitle} title={chart.dynamic_title} tooltip="Shows how many customers came back vs. bought for the first time. A high repeat share means your customers trust you enough to return.">
       <div className="flex items-center gap-4">
         <ResponsiveContainer width={140} height={140}>
           <PieChart>
@@ -389,7 +409,7 @@ function WaterfallChart({ chart }: { chart: ChartData }): React.ReactElement {
     formatted: formatNaira(Math.abs(item.value)),
   }));
   return (
-    <ChartCard subtitle={chart.subtitle} title={chart.dynamic_title}>
+    <ChartCard subtitle={chart.subtitle} title={chart.dynamic_title} tooltip="Starts from gross profit and shows each expense that reduced it. Red bars = costs. The final bar is your net profit — what the business truly kept.">
       <ResponsiveContainer width="100%" height={180}>
         <BarChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
@@ -411,7 +431,7 @@ function WaterfallChart({ chart }: { chart: ChartData }): React.ReactElement {
 function BranchBarChart({ chart }: { chart: ChartData }): React.ReactElement {
   const data = chart.data as BranchBarItem[];
   return (
-    <ChartCard subtitle={chart.subtitle} title={chart.dynamic_title}>
+    <ChartCard subtitle={chart.subtitle} title={chart.dynamic_title} tooltip="Revenue from each branch or location. Longer bar = more revenue from that location. Use this to compare performance across your stores.">
       <ResponsiveContainer width="100%" height={180}>
         <BarChart data={data} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
           <GradDefs />
@@ -439,6 +459,107 @@ function CockpitChart({ chart }: { chart: ChartData }): React.ReactElement | nul
   }
 }
 
+// ── Key Visuals Carousel ────────────────────────────────────────────────────
+// Shows inline charts one at a time.
+// Auto-advances every 10 s, but PAUSES while the user hovers over the card.
+// Prev/Next buttons sit beside the dot indicators.
+
+function KeyVisualsCarousel({ charts }: { charts: ChartData[] }): React.ReactElement {
+  const [current, setCurrent] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
+  const touchStartX = useRef(0);
+  const total = charts.length;
+
+  const goNext = useCallback((): void => setCurrent((p) => (p + 1) % total), [total]);
+  const goPrev = useCallback((): void => setCurrent((p) => (p - 1 + total) % total), [total]);
+  const goTo   = (i: number): void => setCurrent(i);
+
+  // Auto-advance every 10 s; clears when hovered, restarts on unhover
+  useEffect(() => {
+    if (total <= 1 || isHovered) return;
+    const id = setInterval(goNext, 10000);
+    return () => clearInterval(id);
+  }, [total, isHovered, goNext]);
+
+  // Touch-swipe
+  const handleTouchStart = (e: React.TouchEvent): void => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+  const handleTouchEnd = (e: React.TouchEvent): void => {
+    const delta = touchStartX.current - e.changedTouches[0].clientX;
+    if (Math.abs(delta) > 40) { delta > 0 ? goNext() : goPrev(); }
+  };
+
+  if (total === 0) return <></>;
+
+  return (
+    <div
+      className="flex flex-col gap-3"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      {/* Sliding viewport — py-4/-my-4 gives vertical room for hover lift; px-1.5 on each slide gives horizontal room for scale */}
+      <div
+        className="overflow-hidden py-4 -my-4"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
+        <div
+          className="flex"
+          style={{
+            transform: `translateX(-${current * 100}%)`,
+            transition: "transform 0.45s cubic-bezier(0.4, 0, 0.2, 1)",
+          }}
+        >
+          {charts.map((chart, i) => (
+            <div key={i} className="w-full shrink-0 min-w-0 px-1.5">
+              <CockpitChart chart={chart} />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Controls: ‹ prev · dots · next › */}
+      {total > 1 && (
+        <div className="flex items-center justify-center gap-3">
+          <button
+            onClick={goPrev}
+            aria-label="Previous chart"
+            className="p-1 rounded-lg text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+          >
+            <ChevronLeftIcon className="size-4" />
+          </button>
+
+          <div className="flex items-center gap-1.5">
+            {charts.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => goTo(i)}
+                aria-label={`Chart ${i + 1} of ${total}`}
+                className={cn(
+                  "rounded-full transition-all duration-300",
+                  i === current
+                    ? "w-5 h-1.5 bg-primary dark:bg-blue-400"
+                    : "w-1.5 h-1.5 bg-gray-300 dark:bg-slate-600 hover:bg-gray-400 dark:hover:bg-slate-500"
+                )}
+              />
+            ))}
+          </div>
+
+          <button
+            onClick={goNext}
+            aria-label="Next chart"
+            className="p-1 rounded-lg text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+          >
+            <ChevronRightIcon className="size-4" />
+          </button>
+        </div>
+      )}
+
+    </div>
+  );
+}
+
 // ── Forecast Insight Card ───────────────────────────────────────────────────
 
 function ForecastInsightCard({ daysUntilStockout }: { daysUntilStockout?: number | null }): React.ReactElement | null {
@@ -453,10 +574,10 @@ function ForecastInsightCard({ daysUntilStockout }: { daysUntilStockout?: number
     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden">
       <div className="px-5 py-3.5 border-b border-gray-50 dark:border-slate-800 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <ChartBarIcon className="size-4 text-primary" />
+          <ChartBarIcon className="size-4 text-primary dark:text-blue-400" />
           <p className="text-sm font-semibold text-gray-800 dark:text-slate-100">Forecast Insight</p>
         </div>
-        <Link href="/dashboard/forecast" className="text-xs text-primary font-semibold hover:underline flex items-center gap-1">
+        <Link href="/dashboard/forecast" className="text-xs text-primary dark:text-blue-400 font-semibold hover:underline flex items-center gap-1">
           Full forecast <ArrowRightIcon className="size-3" />
         </Link>
       </div>
@@ -570,7 +691,9 @@ export default function CockpitPage(): React.ReactElement {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
           <p className="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-0.5">Cockpit</p>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{greeting}, {firstName} 👋</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">
+            {greeting}, <EditableGreeting fallbackName={firstName} /> 👋
+          </h1>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             <CalendarIcon className="size-3.5 text-gray-400 dark:text-slate-500" />
             <p className="text-sm text-gray-400 dark:text-slate-500">
@@ -604,7 +727,7 @@ export default function CockpitPage(): React.ReactElement {
       <SectionHeader title="Business Health Score" />
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5">
-          <BoltIcon className="size-5 text-primary" />
+          <BoltIcon className="size-5 text-primary dark:text-blue-400" />
           <h2 className="text-sm font-bold text-gray-800 dark:text-slate-100">Overall Score</h2>
         </div>
         <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
@@ -646,11 +769,8 @@ export default function CockpitPage(): React.ReactElement {
         {inlineCharts.length > 0 && (
           <div className="flex flex-col">
             <SectionHeader title="Key Visuals" />
-            <div className="flex flex-col gap-4 flex-1">
-              {inlineCharts.map((chart, i) => (
-                <CockpitChart key={i} chart={chart} />
-              ))}
-            </div>
+            {/* Carousel — swipe left/right or wait 5 s for auto-advance */}
+            <KeyVisualsCarousel charts={inlineCharts} />
           </div>
         )}
       </div>

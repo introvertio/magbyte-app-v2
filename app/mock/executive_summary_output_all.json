@@ -170,19 +170,22 @@
       "type": "alert",
       "headline": "1 product is running low on stock",
       "body": "Frozen chops has fallen below the reorder level. Running out of stock means losing sales you cannot get back.",
-      "linked_page": "Product Performance"
+      "linked_page": "Product Performance",
+      "chart_refs": ["top_products"]
     },
     {
       "type": "positive",
       "headline": "10 products generate 46.3% of your profit",
       "body": "Mini packs, Midi platter, Mini platter... are your highest-earning items. Keep these always in stock.",
-      "linked_page": "Product Performance"
+      "linked_page": "Product Performance",
+      "chart_refs": ["top_products"]
     },
     {
       "type": "warning",
       "headline": "Smallchop/Doughnut earns you more per sale than Chops",
       "body": "Smallchop/Doughnut has an average margin of 72.4%, while Chops sits at -125.0%. Shifting focus toward Smallchop/Doughnut could improve your overall profit.",
-      "linked_page": "Product Performance"
+      "linked_page": "Product Performance",
+      "chart_refs": ["category_performance"]
     }
   ],
   "charts": [

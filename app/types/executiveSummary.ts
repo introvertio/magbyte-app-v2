@@ -134,6 +134,8 @@ export interface Signal {
   headline: string;
   body: string;
   linked_page: string;
+  /** Chart IDs on the linked page that should glow when the user navigates there */
+  chart_refs?: string[];
 }
 
 // ── Chart data item types ────────────────────────────────────────────────────

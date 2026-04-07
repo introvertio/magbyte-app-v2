@@ -244,9 +244,19 @@ export function useFilteredData(): FilteredResult {
 
     const page_2: Page2 = derivePage2(filteredRows, analysis.page_2);
 
+    // Derive actual date range from filtered rows (ISO string comparison is safe for YYYY-MM-DD)
+    const filteredDateRange =
+      filteredRows.length > 0
+        ? {
+            start: filteredRows.reduce((min, r) => (r.date < min ? r.date : min), filteredRows[0].date),
+            end:   filteredRows.reduce((max, r) => (r.date > max ? r.date : max), filteredRows[0].date),
+          }
+        : analysis.metadata.date_range;
+
     const metadata = {
       ...analysis.metadata,
       record_count: filteredRows.length,
+      date_range:   filteredDateRange,
     };
 
     return {

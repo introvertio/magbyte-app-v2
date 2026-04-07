@@ -34,10 +34,18 @@ import {
   KpiCard,
   TICK,
   GRID_STROKE,
+  CHART_PRIMARY_VAR,
 } from "@/app/components/ui/dashboard/ChartUtils";
+import { EditableGreeting } from "@/app/components/ui/dashboard/EditableGreeting";
 
 // Advanced float-million values → full number for chart display
 const fromM = (v: number): number => v * 1_000_000;
+
+// Formats a "YYYY-MM-DD" date string for x-axis labels and tooltips: "13 Mar 26"
+function fmtAxisDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  return isNaN(d.getTime()) ? dateStr : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit" });
+}
 
 // ── Month progress + next month cards ──────────────────────────────────────
 
@@ -92,7 +100,7 @@ function NextMonthCard(): React.ReactElement | null {
   const isUp = nf.direction === "up";
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 overflow-hidden shadow-sm">
-      <div className="h-1 w-full bg-primary/20" />
+      <div className="h-1 w-full bg-primary/20 dark:bg-blue-400/20" />
       <div className="p-5">
         <p className="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-3">{nf.month} — Next Month</p>
         <div className="flex items-center gap-3 mb-2">
@@ -140,14 +148,14 @@ function ForecastLineChart({ points, scale = 1 }: {
   ];
 
   return (
-    <ChartCard title="Sales forecast — next 30 days vs history" subtitle="Forecast Line">
+    <ChartCard title="Sales forecast — next 30 days vs history" subtitle="Forecast Line" tooltip="Blue line = your actual past sales. Yellow dashed line = what the system predicts for the next 30 days. The shaded area shows the range — sales could land higher or lower.">
       <ResponsiveContainer width="100%" height={280}>
         <ComposedChart data={combined} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
           <GradDefs />
           <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
-          <XAxis dataKey="date" tick={TICK} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+          <XAxis dataKey="date" tickFormatter={fmtAxisDate} tick={TICK} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={70} />
           <YAxis tickFormatter={(v) => formatNaira(v)} tick={TICK} axisLine={false} tickLine={false} width={64} />
-          <Tooltip content={<DashTooltip valueFormatter={formatNaira} />} />
+          <Tooltip content={<DashTooltip valueFormatter={formatNaira} labelFormatter={fmtAxisDate} />} />
           <Legend iconType="line" iconSize={10} wrapperStyle={{ fontSize: 10, color: "#6b7280" }} />
           {lastHistoricalDate && (
             <ReferenceLine
@@ -159,7 +167,7 @@ function ForecastLineChart({ points, scale = 1 }: {
           )}
           <Area type="monotone" dataKey="upper" fill={`url(#${GRAD.bandArea})`} stroke="transparent" legendType="none" />
           <Area type="monotone" dataKey="lower" fill="#ffffff" stroke="transparent" legendType="none" />
-          <Line type="monotone" dataKey="historical" stroke="#001BB7" strokeWidth={2.5} dot={false} name="Actual" connectNulls={false} activeDot={{ r: 5, fill: "#001BB7", stroke: "#fff", strokeWidth: 2 }} />
+          <Line type="monotone" dataKey="historical" stroke={CHART_PRIMARY_VAR} strokeWidth={2.5} dot={false} name="Actual" connectNulls={false} activeDot={{ r: 5, fill: "var(--chart-primary)", stroke: "#fff", strokeWidth: 2 }} />
           <Line type="monotone" dataKey="forecast" stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 3" dot={false} name="Forecast" connectNulls={false} activeDot={{ r: 4, fill: "#f59e0b", stroke: "#fff", strokeWidth: 2 }} />
         </ComposedChart>
       </ResponsiveContainer>
@@ -173,7 +181,7 @@ function SeasonalitySection({ seasonality }: {
   seasonality: IntSeasonalityPattern | AdvSeasonalityPattern;
 }): React.ReactElement {
   return (
-    <ChartCard title="When do you sell the most?" subtitle="Best days & months">
+    <ChartCard title="When do you sell the most?" subtitle="Best days & months" tooltip="Shows your average sales by day of the week. Taller bar = stronger sales day. Use this to plan staffing and deliveries on your busiest days.">
       <div className="space-y-4">
         <div>
           <p className="text-[10px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-2">By day of week</p>
@@ -203,7 +211,7 @@ function SeasonalitySection({ seasonality }: {
 
 function MonthlySeasonalityChart({ seasonality }: { seasonality: IntSeasonalityPattern | AdvSeasonalityPattern }): React.ReactElement {
   return (
-    <ChartCard title="Which months bring the most sales?" subtitle="Monthly Seasonality">
+    <ChartCard title="Which months bring the most sales?" subtitle="Monthly Seasonality" tooltip="Your busiest months of the year by average sales. Use this to stock up ahead of your peak season and avoid running out.">
       <ResponsiveContainer width="100%" height={180}>
         <BarChart data={seasonality.sales_by_month} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
           <GradDefs />
@@ -227,11 +235,11 @@ function BasicForecastContent({ data }: { data: BasicAnalysisResult["page_3"] })
     <>
       <SectionHeader title="Key Numbers" />
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <KpiCard label="Forecasted Sales (30d)"  value={formatNaira(kpis.forecasted_sales)}            tooltip="Expected revenue in the next 30 days." />
-        <KpiCard label="Forecasted Profit (30d)" value={formatNaira(kpis.forecasted_profit)}           tooltip="Expected profit from that forecasted revenue." />
-        <KpiCard label="Sales Growth Rate"       value={`${kpis.sales_growth_rate.toFixed(1)}%`}       tooltip="How fast monthly sales are growing." />
-        <KpiCard label="Forecast Confidence"     value={`${kpis.forecast_confidence.toFixed(0)}%`}     tooltip="How reliable the forecast is." sub={meta?.confidence_note ?? ""} />
-        <KpiCard label="Profit Margin"           value={`${(kpis.profit_margin * 100).toFixed(1)}%`}   tooltip="Out of every ₦100 in sales, how much you keep." />
+        <KpiCard label="Forecasted Sales (30d)"  value={formatNaira(kpis.forecasted_sales)}            tooltip="Expected revenue in the next 30 days." accent="blue" />
+        <KpiCard label="Forecasted Profit (30d)" value={formatNaira(kpis.forecasted_profit)}           tooltip="Expected profit from that forecasted revenue." accent="blue" />
+        <KpiCard label="Sales Growth Rate"       value={`${kpis.sales_growth_rate.toFixed(1)}%`}       tooltip="How fast monthly sales are growing." accent="blue" />
+        <KpiCard label="Forecast Confidence"     value={`${kpis.forecast_confidence.toFixed(0)}%`}     tooltip="How reliable the forecast is." sub={meta?.confidence_note ?? ""} accent="blue" />
+        <KpiCard label="Profit Margin"           value={`${(kpis.profit_margin * 100).toFixed(1)}%`}   tooltip="Out of every ₦100 in sales, how much you keep." accent="blue" />
       </div>
 
       <SectionHeader title="Month Tracking" />
@@ -246,7 +254,7 @@ function BasicForecastContent({ data }: { data: BasicAnalysisResult["page_3"] })
       <SectionHeader title="Category & Seasonality" />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {charts.category_forecast_bars.length > 0 && (
-          <ChartCard title="Which categories will grow next quarter?" subtitle="Category Forecast">
+          <ChartCard title="Which categories will grow next quarter?" subtitle="Category Forecast" tooltip="Blue bars = last 3 months. Green bars = forecast for next 3 months. Longer green bar means more expected growth from that category.">
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={charts.category_forecast_bars} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
                 <GradDefs />
@@ -279,11 +287,11 @@ function IntermediateForecastContent({ data }: { data: IntermediateAnalysisResul
     <>
       <SectionHeader title="Key Numbers" />
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <KpiCard label="Forecasted Sales (30d)"  value={formatNaira(kpis.total_forecasted_sales)}        tooltip="Expected revenue in the next 30 days." />
-        <KpiCard label="Forecasted Profit (30d)" value={formatNaira(kpis.total_forecasted_profit)}       tooltip="Expected profit from that forecasted revenue." />
-        <KpiCard label="Sales Growth Rate"       value={`${kpis.sales_growth_rate.toFixed(1)}%`}        tooltip="How fast monthly sales are growing." />
-        <KpiCard label="Forecast Confidence"     value={`${kpis.forecast_confidence.toFixed(0)}%`}      tooltip="How reliable the forecast is." />
-        <KpiCard label="Profit Margin"           value={`${kpis.historical_profit_margin.toFixed(1)}%`} tooltip="Historical average gross margin." />
+        <KpiCard label="Forecasted Sales (30d)"  value={formatNaira(kpis.total_forecasted_sales)}        tooltip="Expected revenue in the next 30 days." accent="blue" />
+        <KpiCard label="Forecasted Profit (30d)" value={formatNaira(kpis.total_forecasted_profit)}       tooltip="Expected profit from that forecasted revenue." accent="blue" />
+        <KpiCard label="Sales Growth Rate"       value={`${kpis.sales_growth_rate.toFixed(1)}%`}        tooltip="How fast monthly sales are growing." accent="blue" />
+        <KpiCard label="Forecast Confidence"     value={`${kpis.forecast_confidence.toFixed(0)}%`}      tooltip="How reliable the forecast is." accent="blue" />
+        <KpiCard label="Profit Margin"           value={`${kpis.historical_profit_margin.toFixed(1)}%`} tooltip="Historical average gross margin." accent="blue" />
       </div>
 
       <SectionHeader title="Month Tracking" />
@@ -317,11 +325,11 @@ function AdvancedForecastContent({ data }: { data: AdvancedAnalysisResult["page_
     <>
       <SectionHeader title="Key Numbers" />
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <KpiCard label="Forecasted Sales (30d)"  value={kpis.forecasted_sales}         tooltip="Expected revenue in the next 30 days." />
-        <KpiCard label="Forecasted Profit (30d)" value={kpis.forecasted_profit}        tooltip="Expected profit from that forecasted revenue." />
-        <KpiCard label="Sales Growth Rate"       value={kpis.sales_growth_rate}        tooltip="How fast monthly sales are growing." />
-        <KpiCard label="Forecast Confidence"     value={kpis.forecast_confidence}      tooltip="How reliable the forecast is." />
-        <KpiCard label="Profit Margin"           value={kpis.historical_profit_margin} tooltip="Historical average gross margin." />
+        <KpiCard label="Forecasted Sales (30d)"  value={kpis.forecasted_sales}         tooltip="Expected revenue in the next 30 days." accent="blue" />
+        <KpiCard label="Forecasted Profit (30d)" value={kpis.forecasted_profit}        tooltip="Expected profit from that forecasted revenue." accent="blue" />
+        <KpiCard label="Sales Growth Rate"       value={kpis.sales_growth_rate}        tooltip="How fast monthly sales are growing." accent="blue" />
+        <KpiCard label="Forecast Confidence"     value={kpis.forecast_confidence}      tooltip="How reliable the forecast is." accent="blue" />
+        <KpiCard label="Profit Margin"           value={kpis.historical_profit_margin} tooltip="Historical average gross margin." accent="blue" />
       </div>
 
       {kpis.days_until_stockout <= 90 && (
@@ -374,10 +382,10 @@ function BasicProductForecastTable({ rows }: { rows: BasicAnalysisResult["page_3
           </thead>
           <tbody>
             {rows.map((row, i) => (
-              <tr key={i} className={cn("border-b border-gray-50 dark:border-slate-800 hover:bg-blue-50/30 dark:hover:bg-blue-950/30 transition-colors", i % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-gray-50/40 dark:bg-slate-800/30")}>
+              <tr key={i} className={cn("relative border-b border-gray-50 dark:border-slate-800 hover:bg-blue-50/60 dark:hover:bg-blue-950/40 hover:scale-[1.01] hover:z-10 transition-all duration-150", i % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-gray-50/40 dark:bg-slate-800/30")}>
                 <td className="px-4 py-2.5 font-medium text-gray-800 dark:text-slate-200 max-w-[160px] truncate">{row.product}</td>
                 <td className="px-4 py-2.5 text-gray-500 dark:text-slate-500">{row.category}</td>
-                <td className="px-4 py-2.5 font-bold text-primary tabular-nums">{formatNaira(row.forecast_30d)}</td>
+                <td className="px-4 py-2.5 font-bold text-primary dark:text-blue-400 tabular-nums">{formatNaira(row.forecast_30d)}</td>
                 <td className="px-4 py-2.5 text-gray-600 dark:text-slate-400 tabular-nums">{formatNaira(row.total_sales)}</td>
                 <td className="px-4 py-2.5 tabular-nums">
                   <span className={cn(
@@ -421,7 +429,7 @@ function IntProductForecastTable({ rows }: { rows: IntTopItemForecast[] }): Reac
           </thead>
           <tbody>
             {rows.map((row, i) => (
-              <tr key={i} className={cn("border-b border-gray-50 dark:border-slate-800 hover:bg-blue-50/30 dark:hover:bg-blue-950/30 transition-colors", i % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-gray-50/40 dark:bg-slate-800/30")}>
+              <tr key={i} className={cn("relative border-b border-gray-50 dark:border-slate-800 hover:bg-blue-50/60 dark:hover:bg-blue-950/40 hover:scale-[1.01] hover:z-10 transition-all duration-150", i % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-gray-50/40 dark:bg-slate-800/30")}>
                 <td className="px-4 py-2.5">
                   <span className={cn(
                     "inline-flex items-center justify-center size-6 rounded-full text-[10px] font-bold",
@@ -429,7 +437,7 @@ function IntProductForecastTable({ rows }: { rows: IntTopItemForecast[] }): Reac
                   )}>{row.rank}</span>
                 </td>
                 <td className="px-4 py-2.5 font-medium text-gray-800 dark:text-slate-200 max-w-[160px] truncate">{row.product}</td>
-                <td className="px-4 py-2.5 font-bold text-primary tabular-nums">{formatNaira(row.day_30_forecast)}</td>
+                <td className="px-4 py-2.5 font-bold text-primary dark:text-blue-400 tabular-nums">{formatNaira(row.day_30_forecast)}</td>
                 <td className="px-4 py-2.5 text-gray-600 dark:text-slate-400 tabular-nums">{formatNaira(row.target_sales)}</td>
                 <td className="px-4 py-2.5 text-gray-500 dark:text-slate-500 tabular-nums">{formatNaira(row.total_sales)}</td>
               </tr>
@@ -443,7 +451,7 @@ function IntProductForecastTable({ rows }: { rows: IntTopItemForecast[] }): Reac
 
 function IntCategoryPredictionChart({ rows }: { rows: IntCategoryPrediction[] }): React.ReactElement {
   return (
-    <ChartCard title="Which categories will grow next month?" subtitle="Category Prediction">
+    <ChartCard title="Which categories will grow next month?" subtitle="Category Prediction" tooltip="Compares current vs forecasted sales per category. When the green bar extends beyond the blue, growth is expected in that category next month.">
       <ResponsiveContainer width="100%" height={240}>
         <BarChart data={rows} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
           <GradDefs />
@@ -467,7 +475,7 @@ function AdvCategoryPredictionChart({ rows }: { rows: AdvCategoryPrediction[] })
     growth:   r.growth,
   }));
   return (
-    <ChartCard title="Which categories will grow next month?" subtitle="Category Prediction">
+    <ChartCard title="Which categories will grow next month?" subtitle="Category Prediction" tooltip="Compares current vs forecasted sales per category. When the green bar extends beyond the blue, growth is expected in that category next month.">
       <ResponsiveContainer width="100%" height={240}>
         <BarChart data={data} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
           <GradDefs />
@@ -503,7 +511,7 @@ export default function ForecastInsightsPage(): React.ReactElement {
 
       <div>
         <p className="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-0.5">Forecast</p>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{greeting}, {firstName}</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{greeting}, <EditableGreeting fallbackName={firstName} /></h1>
         <div className="flex items-center gap-2 mt-1">
           <CalendarIcon className="size-3.5 text-gray-400 dark:text-slate-500" />
           <p className="text-sm text-gray-400 dark:text-slate-500">
