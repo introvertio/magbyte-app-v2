@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { InformationCircleIcon, ArrowsPointingOutIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { useDashboardStore } from "@/app/stores/dashboard/useDashboardStore";
+import { useFilterPaneContext } from "@/app/contexts/FilterPaneContext";
 
 // ── Brand colour palette ────────────────────────────────────────────────────
 
@@ -93,20 +94,34 @@ export function GradDefs(): React.ReactElement {
 
 // Recharts passes these props to a custom tooltip component at runtime.
 // labelFormatter: optional — format the x-axis label shown in the tooltip header
+// payloadOrder: optional — list of dataKey strings; payload rows are sorted to match this order
 interface DashTooltipProps {
   active?: boolean;
-  payload?: Array<{ name?: string; value?: number | string; color?: string }>;
+  payload?: Array<{ name?: string; value?: number | string; color?: string; dataKey?: string }>;
   label?: string | number;
   valueFormatter?: (v: number) => string;
   labelFormatter?: (label: string) => string;
+  payloadOrder?: string[];
 }
 
-export function DashTooltip({ active, payload, label, valueFormatter, labelFormatter }: DashTooltipProps): React.ReactElement | null {
+export function DashTooltip({ active, payload, label, valueFormatter, labelFormatter, payloadOrder }: DashTooltipProps): React.ReactElement | null {
   if (!active || !payload?.length) return null;
   const fmt = valueFormatter ?? ((v: number) => v.toLocaleString());
   const displayLabel = label !== undefined && label !== null && String(label) !== ""
     ? (labelFormatter ? labelFormatter(String(label)) : String(label))
     : null;
+
+  // Sort payload rows when the caller specifies a preferred display order.
+  const orderedPayload = payloadOrder
+    ? [...payload].sort((a, b) => {
+        // Use dataKey first, then fallback to name; Recharts can vary by series type.
+        const aKey = String(a.dataKey ?? a.name ?? "").toLowerCase();
+        const bKey = String(b.dataKey ?? b.name ?? "").toLowerCase();
+        const ai = payloadOrder.indexOf(aKey);
+        const bi = payloadOrder.indexOf(bKey);
+        return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+      })
+    : payload;
 
   return (
     <div className="bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 text-xs rounded-xl px-3 py-2.5 shadow-lg border border-gray-200 dark:border-slate-700 min-w-[130px] max-w-[220px] pointer-events-none">
@@ -114,7 +129,7 @@ export function DashTooltip({ active, payload, label, valueFormatter, labelForma
         <p className="text-gray-500 dark:text-slate-300 text-xs font-medium border-b border-gray-100 dark:border-slate-700 pb-1.5 mb-2 truncate">{displayLabel}</p>
       )}
       <div className="space-y-1.5">
-        {payload.map((entry, i) => (
+        {orderedPayload.map((entry, i) => (
           <div key={i} className="flex items-center justify-between gap-4">
             <span className="flex items-center gap-1.5 min-w-0">
               <span
@@ -168,21 +183,83 @@ export function ChartCard({ title, subtitle, tooltip, children, focusContent, cl
   const [showTip,   setShowTip]   = useState(false);
   const [hovering,  setHovering]  = useState(false); // tracks whether cursor is inside the card
   const [focusOpen, setFocusOpen] = useState(false); // controls the full-screen focus modal
+  const { contentFilters } = useFilterPaneContext();
 
   // ── Layout awareness — keep modal inside the main content area ─────────────
   // SideRail: w-52 (208px) expanded · w-14 (56px) collapsed
   // FilterPane: w-[300px] open · 0px closed (toggle tab excluded — it's z-40 and small)
-  const { sideRailExpanded, filterPaneOpen, setFocusModeOpen } = useDashboardStore();
+  const {
+    sideRailExpanded,
+    filterPaneOpen,
+    setFocusModeOpen,
+    filterYears,
+    filterMonths,
+    filterDaysOfWeek,
+    toggleFilterYear,
+    toggleFilterMonth,
+    toggleFilterDayOfWeek,
+    clearFilters,
+    setFocusedChartId,
+  } = useDashboardStore();
   const sideRailW  = sideRailExpanded ? 208 : 56;
   const filterPaneW = filterPaneOpen ? 308 : 0; // 300px pane + 8px breathing room
+
+  const focusSnapshotRef = useRef<{
+    years: number[];
+    months: number[];
+    days: number[];
+    contentById: Record<string, string[]>;
+  } | null>(null);
+
+  const openFocusMode = useCallback((): void => {
+    // Snapshot/restore pattern: preserve current filters before temporary focus-mode changes.
+    focusSnapshotRef.current = {
+      years: [...filterYears],
+      months: [...filterMonths],
+      days: [...filterDaysOfWeek],
+      contentById: Object.fromEntries(
+        contentFilters.map((f) => [f.id, [...f.selected]])
+      ),
+    };
+    setFocusedChartId(chartId ?? title);
+    setFocusOpen(true);
+  }, [filterYears, filterMonths, filterDaysOfWeek, contentFilters, setFocusedChartId, chartId, title]);
+
+  const closeFocusMode = useCallback((): void => {
+    const snapshot = focusSnapshotRef.current;
+    if (snapshot) {
+      clearFilters();
+      snapshot.years.forEach((y) => toggleFilterYear(y));
+      snapshot.months.forEach((m) => toggleFilterMonth(m));
+      snapshot.days.forEach((d) => toggleFilterDayOfWeek(d));
+
+      contentFilters.forEach((f) => {
+        const target = snapshot.contentById[f.id] ?? [];
+        f.onClearAll();
+        target.forEach((value) => {
+          if (f.options.includes(value)) f.onToggle(value);
+        });
+      });
+    }
+    focusSnapshotRef.current = null;
+    setFocusedChartId(null);
+    setFocusOpen(false);
+  }, [
+    clearFilters,
+    toggleFilterYear,
+    toggleFilterMonth,
+    toggleFilterDayOfWeek,
+    contentFilters,
+    setFocusedChartId,
+  ]);
 
   // Close modal on Escape key press
   useEffect(() => {
     if (!focusOpen) return;
-    const onKey = (e: KeyboardEvent): void => { if (e.key === "Escape") setFocusOpen(false); };
+    const onKey = (e: KeyboardEvent): void => { if (e.key === "Escape") closeFocusMode(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [focusOpen]);
+  }, [focusOpen, closeFocusMode]);
 
   // Lock body scroll while modal is open so the page doesn't scroll behind it
   useEffect(() => {
@@ -221,7 +298,7 @@ export function ChartCard({ title, subtitle, tooltip, children, focusContent, cl
             {/* Focus button — slides in when card is hovered */}
             {focusable && hovering && (
               <button
-                onClick={(e) => { e.stopPropagation(); setFocusOpen(true); }}
+                onClick={(e) => { e.stopPropagation(); openFocusMode(); }}
                 aria-label="Focus on this visual"
                 className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-gray-400 dark:text-slate-500 hover:text-primary dark:hover:text-blue-400 hover:bg-primary/8 dark:hover:bg-blue-950/50 transition-colors"
               >
@@ -257,7 +334,7 @@ export function ChartCard({ title, subtitle, tooltip, children, focusContent, cl
       {focusable && focusOpen && typeof window !== "undefined" && createPortal(
         <div
           className="chart-focus-backdrop fixed inset-0 z-[300] bg-black/70 backdrop-blur-md flex"
-          onClick={() => setFocusOpen(false)}
+          onClick={closeFocusMode}
         >
           {/* Left spacer matching the SideRail — keeps chart from bleeding into it */}
           <div style={{ width: sideRailW, flexShrink: 0 }} />
@@ -280,7 +357,7 @@ export function ChartCard({ title, subtitle, tooltip, children, focusContent, cl
                 <p className="text-lg font-semibold text-white drop-shadow">{title}</p>
               </div>
               <button
-                onClick={() => setFocusOpen(false)}
+                onClick={closeFocusMode}
                 className="p-2 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-colors"
                 aria-label="Close focus view"
               >

@@ -135,11 +135,8 @@ export interface IntPage3 {
 export interface IntExpenseKpis {
   total_expenses: number;
   operating_profit: number;
-  net_profit: number;
   expense_share: number;
-  expense_to_sales_ratio: number;
   monthly_avg_expense: number;
-  ytd_expenses: number;
   operating_profit_margin: number;
   net_profit_margin: number;
 }
@@ -202,6 +199,14 @@ export interface IntSeasonalityPattern {
   sales_heatmap?: unknown;
 }
 
+export interface ForecastMeta {
+  months_of_data: number;
+  min_months_required: number;
+  sufficient_data: boolean;
+  horizon_days: number;
+  confidence_note: string;
+}
+
 export interface IntPage5 {
   status: string;
   kpis: IntPage5Kpis;
@@ -212,7 +217,7 @@ export interface IntPage5 {
     expected_profit_trend: unknown[];
     seasonality_pattern: IntSeasonalityPattern;
   };
-  forecast_meta: unknown;
+  forecast_meta: ForecastMeta;
 }
 
 // ── Root ───────────────────────────────────────────────────────────────────

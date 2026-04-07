@@ -6,7 +6,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, LabelList, Legend,
 } from "recharts";
 import { useFilteredData, filterMonthlyTrend } from "@/app/hooks/useFilteredData";
-import { useSalesPageData, useTierMetadata } from "@/app/hooks/useDashboardData";
+import { useSalesPageData, useTierMetadata, useBasicAnalysis } from "@/app/hooks/useDashboardData";
 import { useGetProfile } from "@/app/components/hooks/user/useGetProfile";
 import { useDashboardStore } from "@/app/stores/dashboard/useDashboardStore";
 import { getGreeting, formatNaira, cn, fmtTableDate } from "@/lib/utils";
@@ -159,7 +159,7 @@ function BasicDetailTable({ categoryFilters, paymentFilters, productFilters }: B
           <p className="text-xs text-gray-400 dark:text-slate-500">Page {page + 1} of {totalPages}</p>
           <div className="flex gap-2">
             <button disabled={page === 0} onClick={() => setPage((p) => p - 1)} className="px-3 py-1.5 text-xs rounded-lg bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 disabled:opacity-40 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors font-medium">Previous</button>
-            <button disabled={page === totalPages - 1} onClick={() => setPage((p) => p + 1)} className="px-3 py-1.5 text-xs rounded-lg bg-primary text-white disabled:opacity-40 hover:opacity-90 active:scale-[0.97] transition-all font-medium">Next</button>
+            <button disabled={page === totalPages - 1} onClick={() => setPage((p) => p + 1)} className="px-3 py-1.5 text-xs rounded-lg bg-primary dark:bg-secondary text-white disabled:opacity-40 hover:opacity-90 dark:hover:bg-secondary/90 active:scale-[0.97] transition-all font-medium">Next</button>
           </div>
         </div>
       )}
@@ -169,10 +169,11 @@ function BasicDetailTable({ categoryFilters, paymentFilters, productFilters }: B
 
 // ── Tier content sections ─────────────────────────────────────────────────────
 
-function BasicContent({ data }: { data: BasicAnalysisResult["page_1"] }): React.ReactElement {
+function BasicContent({ data, rawData }: { data: BasicAnalysisResult["page_1"]; rawData: BasicAnalysisResult["page_1"] }): React.ReactElement {
   const { kpis, charts } = data;
   const metadata = useTierMetadata();
   const { page_1 } = useFilteredData();
+  const { focusModeOpen } = useDashboardStore();
 
   // ── Chart-as-filter state — multi-select arrays (chart click + FilterPane both drive these) ────
   const [categoryFilters, setCategoryFilters] = useState<string[]>([]);
@@ -276,11 +277,17 @@ function BasicContent({ data }: { data: BasicAnalysisResult["page_1"] }): React.
   const monthlySales = useMemo(() => {
     return aggregateDailyToMonthly(filteredRows.map((r) => ({ date: r.date, sales: r.total_sales_auto })), "sales");
   }, [filteredRows]);
+  const monthlySalesUnderlay = useMemo(() => {
+    return aggregateDailyToMonthly(rawData.detail_table.map((r) => ({ date: r.date, sales: r.total_sales_auto })), "sales");
+  }, [rawData.detail_table]);
 
   // ── Monthly profit trend — always derive from already date-filtered rows ─
   const monthlyProfit = useMemo(() => {
     return aggregateDailyToMonthly(filteredRows.map((r) => ({ date: r.date, profit: r.profit_auto })), "profit");
   }, [filteredRows]);
+  const monthlyProfitUnderlay = useMemo(() => {
+    return aggregateDailyToMonthly(rawData.detail_table.map((r) => ({ date: r.date, profit: r.profit_auto })), "profit");
+  }, [rawData.detail_table]);
 
   // ── Category quantity chart — re-aggregate from filteredRows when filter active ─
   const quantityByCategory = useMemo(() => {
@@ -293,6 +300,13 @@ function BasicContent({ data }: { data: BasicAnalysisResult["page_1"] }): React.
       .map(([category, quantity]) => ({ category, quantity }))
       .sort((a, b) => b.quantity - a.quantity);
   }, [filteredRows, hasContentFilter, page_1.detail_table]);
+  const quantityByCategoryUnderlay = useMemo(() => {
+    const totals: Record<string, number> = {};
+    rawData.detail_table.forEach((r) => { totals[r.category] = (totals[r.category] ?? 0) + r.quantity; });
+    return Object.entries(totals)
+      .map(([category, quantity]) => ({ category, quantity }))
+      .sort((a, b) => b.quantity - a.quantity);
+  }, [rawData.detail_table]);
 
   // ── Payment distribution — always derive from already date-filtered rows ─
   const paymentDist = useMemo(() => {
@@ -302,6 +316,13 @@ function BasicContent({ data }: { data: BasicAnalysisResult["page_1"] }): React.
       .map(([payment_method, transactions]) => ({ payment_method, transactions }))
       .sort((a, b) => b.transactions - a.transactions);
   }, [filteredRows]);
+  const paymentDistUnderlay = useMemo(() => {
+    const counts: Record<string, number> = {};
+    rawData.detail_table.forEach((r) => { counts[r.payment_method] = (counts[r.payment_method] ?? 0) + 1; });
+    return Object.entries(counts)
+      .map(([payment_method, transactions]) => ({ payment_method, transactions }))
+      .sort((a, b) => b.transactions - a.transactions);
+  }, [rawData.detail_table]);
 
   return (
     <>
@@ -343,7 +364,7 @@ function BasicContent({ data }: { data: BasicAnalysisResult["page_1"] }): React.
           }
         >
           <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={monthlySales} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+            <AreaChart data={focusModeOpen ? monthlySalesUnderlay : monthlySales} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
               <GradDefs />
               <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
               <XAxis dataKey="label" tick={TICK} axisLine={false} tickLine={false} />
@@ -382,7 +403,7 @@ function BasicContent({ data }: { data: BasicAnalysisResult["page_1"] }): React.
           }
         >
           <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={monthlyProfit} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+            <AreaChart data={focusModeOpen ? monthlyProfitUnderlay : monthlyProfit} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
               <GradDefs />
               <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
               <XAxis dataKey="label" tick={TICK} axisLine={false} tickLine={false} />
@@ -424,13 +445,13 @@ function BasicContent({ data }: { data: BasicAnalysisResult["page_1"] }): React.
           }
         >
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={quantityByCategory} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
+            <BarChart data={focusModeOpen ? quantityByCategoryUnderlay : quantityByCategory} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
               <GradDefs />
               <XAxis type="number" tick={TICK} axisLine={false} tickLine={false} />
               <YAxis type="category" dataKey="category" tick={TICK} axisLine={false} tickLine={false} width={100} />
               <Tooltip content={<DashTooltip />} cursor={{ fill: "transparent" }} />
               <Bar dataKey="quantity" radius={[0, 6, 6, 0]} name="Units" cursor="pointer">
-                {quantityByCategory.map((entry, i) => (
+                {(focusModeOpen ? quantityByCategoryUnderlay : quantityByCategory).map((entry, i) => (
                   <Cell
                     key={i}
                     fill={CHART_COLOURS.primaryMid}
@@ -495,7 +516,7 @@ function BasicContent({ data }: { data: BasicAnalysisResult["page_1"] }): React.
             <ResponsiveContainer width={160} height={160}>
               <PieChart>
                 <Pie
-                  data={paymentDist}
+                  data={focusModeOpen ? paymentDistUnderlay : paymentDist}
                   dataKey="transactions"
                   nameKey="payment_method"
                   cx="50%"
@@ -505,7 +526,7 @@ function BasicContent({ data }: { data: BasicAnalysisResult["page_1"] }): React.
                   paddingAngle={3}
                   cursor="pointer"
                 >
-                  {paymentDist.map((entry, i) => (
+                  {(focusModeOpen ? paymentDistUnderlay : paymentDist).map((entry, i) => (
                     <Cell
                       key={i}
                       fill={DONUT_COLOURS[i % DONUT_COLOURS.length]}
@@ -521,7 +542,7 @@ function BasicContent({ data }: { data: BasicAnalysisResult["page_1"] }): React.
               </PieChart>
             </ResponsiveContainer>
             <div className="flex flex-col gap-2.5">
-              {paymentDist.map((item, i) => (
+              {(focusModeOpen ? paymentDistUnderlay : paymentDist).map((item, i) => (
                 <button
                   key={item.payment_method}
                   onClick={() => togglePayment(item.payment_method)}
@@ -938,6 +959,7 @@ function FilterNotice({ count }: { count: number }): React.ReactElement {
 export default function SalesOverviewPage(): React.ReactElement {
   const { data: user } = useGetProfile();
   const tierData = useSalesPageData();
+  const basicRaw = useBasicAnalysis();
   const metadata = useTierMetadata();
   const filteredData = useFilteredData();
   const { filteredCount, isFiltered } = filteredData;
@@ -964,7 +986,7 @@ export default function SalesOverviewPage(): React.ReactElement {
       {isFiltered && tierData.tier === "basic" && <FilterNotice count={filteredCount} />}
 
       <SectionHeader title="Key Numbers" />
-      {tierData.tier === "basic"        && <BasicContent data={filteredData.page_1} />}
+      {tierData.tier === "basic"        && <BasicContent data={filteredData.page_1} rawData={basicRaw.page_1} />}
       {tierData.tier === "intermediate" && <IntContent   data={tierData.data} />}
       {tierData.tier === "advanced"     && <AdvContent   data={tierData.data} />}
     </div>

@@ -13,10 +13,10 @@ Next.js 16 App Router · React 19 · Tailwind CSS v4 · tailwind-merge · TanSta
 
 ## Commands
 ```bash
-pnpm dev        # → http://localhost:3302
+pnpm dev           # → http://localhost:3302
 pnpm build
 pnpm lint
-pnpm type-check # run after every set of changes
+pnpm tsc --noEmit  # type-check — run after every set of changes (pnpm type-check does not exist)
 ```
 
 ## Structure
@@ -96,7 +96,7 @@ Full guidelines: `Cowork - MagByte/Context/MagByte Brand Guidelines.pdf`
 - **Greeting:** "Good morning/afternoon/evening, [Name]" on every page. Use `<EditableGreeting fallbackName={firstName} />` — never inline the editable logic. Name is user-editable via pencil-on-hover icon; persisted in localStorage.
 - **Charts as filters:** clicking a chart element filters the rest of that page only — never bleeds across pages. Pattern: `Cell onClick` with `opacity` + `stroke` selection indicator. `ChartFilterBadges` component shows active filters with × to clear.
 - **Signal deep-link:** signal cards on cockpit use `?glow=chart_id1,chart_id2` → target page scrolls + applies `.chart-glow` CSS pulse. `Signal` type has `chart_refs?: string[]`. `ChartCard` accepts `chartId` + `glowing` props.
-- **Date format on x-axis + tooltips:** `fmtAxisDate` → "13 Mar 26" (`year: "2-digit"`). `DashTooltip` accepts `labelFormatter` prop — pass it there, not on `<Tooltip>`. Use `minTickGap={70}` to prevent label crowding.
+- **Date format on x-axis + tooltips:** `fmtAxisDate` → "13 Mar 26" (`year: "2-digit"`). `DashTooltip` accepts `labelFormatter` prop — pass it there, not on `<Tooltip>`. Use `minTickGap={70}` to prevent label crowding. `DashTooltip` also accepts `payloadOrder?: string[]` — pass an array of `dataKey` names to control tooltip row order (used on forecast chart: `["historical", "upper", "forecast", "lower"]`).
 - **Focus mode:** `ChartCard` accepts `focusable` + optional `focusContent` props. Clicking "Focus" opens a full-screen portal modal at `z-[300]`. Modal is transparent with title + chart on `bg-black/70 backdrop-blur-md`. Insets itself via `sideRailExpanded` + `filterPaneOpen`. `focusContent` must use `<ResponsiveContainer height={500}>` — NOT 200. Using 200 causes a coordinate mismatch (Recharts maps tooltips to a 200px SVG stretched to 500px display; tooltips only fire in the top 40%). The FilterPane tab button and pane are at `z-[350]` so they remain clickable and usable while a focus modal is open. Currently wired: all 4 BasicContent charts in Sales.
 - **Tooltips:** every chart + KPI card has a `?` icon — plain ELI5 language
 - **KPI colour signals:** 🟢 improving · 🟡 stable (±2%) · 🔴 declining — always show, never omit
@@ -135,9 +135,8 @@ formatDate(date)
 ```
 
 ## Git
-- Branch: `feature/short-desc` or `fix/short-desc`
 - Commits: imperative mood ("Add sales chart")
-- Never commit to `main` directly
+- Committing directly to `main` — no feature branches while sole developer
 - Always state proposed commit message before committing
 
 ## FilterPane — architecture notes
@@ -147,6 +146,19 @@ formatDate(date)
 - `TIER_FILTER_GROUPS` in `FilterPane.tsx` controls which filter groups appear per tier. Basic now includes `payment`. Pages that don't register a group (Cockpit, Forecast for `payment`) auto-show "Not available on this page".
 - Payment method filter for Basic tier lives in the FilterPane only — not as inline chips on the page.
 - Pane top behavior: normal mode sits under TopBar; in chart focus mode, pane background extends to top (no top-right gap) while content remains offset below TopBar.
+
+## Forecast page — architecture notes
+- `ForecastMeta` interface lives in `app/types/intermediateAnalysis.ts` and is shared by Int + Adv via `import("./intermediateAnalysis").ForecastMeta`.
+- `InsufficientDataGate` component in `forecast/page.tsx` — renders when `forecast_meta.sufficient_data === false` (threshold: `min_months_required = 3` months across all tiers). Shows days remaining + progress bar. Reads threshold from the data so it stays correct if the Python constant changes.
+- Confidence bands (`upper_band` / `lower_band`) on the forecast line chart: computed in Python as `forecast ± std_dev(daily_sales)`. Basic script had them; Int + Adv scripts updated to match. Adv values divide by `1_000_000` before output. Bands only show for forecast points, not historical.
+- `ForecastLineChart` is a single shared component — tooltip order fix (`payloadOrder`) and gate logic apply across all tiers automatically.
+
+## Expenses page — removed KPIs
+Intermediate and Advanced expenses pages had 3 KPIs removed (redundant / filter-handled):
+- **Net Profit** — same as Operating Profit when no below-the-line items exist
+- **Expense to Sales** — same information as Expense Share
+- **YTD Expenses** — literally equalled `total_expenses` in the script; filters handle time-slicing
+These are removed from both `IntExpenseKpis` (type) and the page render. The Python `net_profit` variable is still computed in `analyze_retail_intermediate.py` because `net_margin` still needs it.
 
 ## Pending (not yet built)
 - **Focus mode — roll out** — wire `focusable` + `focusContent` (with `height={500}`) to all ChartCards across Products, Customers, Expenses, Forecast, Staff. Exclude Cockpit (`/dashboard`).

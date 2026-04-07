@@ -184,7 +184,7 @@ function FilterSection({
             {title}
           </span>
           {activeCount > 0 && (
-            <span className="inline-flex items-center justify-center min-w-[16px] h-4 rounded-full bg-primary/10 dark:bg-blue-900/40 text-primary dark:text-blue-300 text-[9px] font-bold px-1 border border-primary/20 dark:border-blue-800/40">
+            <span className="inline-flex items-center justify-center min-w-[16px] h-4 rounded-full bg-secondary/15 dark:bg-secondary/25 text-secondary dark:text-secondary text-[9px] font-bold px-1 border border-secondary/30 dark:border-secondary/40">
               {activeCount}
             </span>
           )}
@@ -235,7 +235,7 @@ function CheckList({
             type="checkbox"
             checked={selected.includes(opt)}
             onChange={() => onToggle(opt)}
-            className="accent-primary size-3.5 shrink-0"
+            className="accent-secondary size-3.5 shrink-0"
           />
           <span className="truncate">{opt}</span>
         </label>
@@ -316,7 +316,7 @@ export default function FilterPane(): React.ReactElement {
         </span>
         {/* Badge lives outside overflow-hidden so it is never clipped */}
         {totalActiveCount > 0 && (
-          <span className="absolute -top-1.5 -left-1.5 min-w-[16px] h-4 rounded-full bg-primary text-white text-[9px] font-bold flex items-center justify-center px-1 shadow-sm pointer-events-none">
+          <span className="absolute -top-1.5 -left-1.5 min-w-[16px] h-4 rounded-full bg-secondary text-white text-[9px] font-bold flex items-center justify-center px-1 shadow-sm pointer-events-none">
             {totalActiveCount}
           </span>
         )}
@@ -346,7 +346,7 @@ export default function FilterPane(): React.ReactElement {
                 Filters
               </span>
               {totalActiveCount > 0 && (
-                <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-primary/10 dark:bg-blue-900/40 text-primary dark:text-blue-300 text-[10px] font-bold px-1.5 border border-primary/20 dark:border-blue-800/50">
+                <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-secondary/15 dark:bg-secondary/25 text-secondary dark:text-secondary text-[10px] font-bold px-1.5 border border-secondary/30 dark:border-secondary/40">
                   {totalActiveCount}
                 </span>
               )}
@@ -413,7 +413,7 @@ export default function FilterPane(): React.ReactElement {
                       type="checkbox"
                       checked={filterYears.includes(y)}
                       onChange={() => toggleFilterYear(y)}
-                      className="accent-primary size-3.5 shrink-0"
+                      className="accent-secondary size-3.5 shrink-0"
                     />
                     {y}
                   </label>
@@ -436,7 +436,7 @@ export default function FilterPane(): React.ReactElement {
                       type="checkbox"
                       checked={filterMonths.includes(i)}
                       onChange={() => toggleFilterMonth(i)}
-                      className="accent-primary size-3 shrink-0"
+                      className="accent-secondary size-3 shrink-0"
                     />
                     {m}
                   </label>
@@ -459,7 +459,7 @@ export default function FilterPane(): React.ReactElement {
                       type="checkbox"
                       checked={filterDaysOfWeek.includes(d.value)}
                       onChange={() => toggleFilterDayOfWeek(d.value)}
-                      className="accent-primary size-3 shrink-0"
+                      className="accent-secondary size-3 shrink-0"
                     />
                     {d.label}
                   </label>
@@ -523,7 +523,7 @@ export default function FilterPane(): React.ReactElement {
             className={cn(
               "w-full py-2 rounded-xl text-sm font-semibold transition-colors",
               totalActiveCount > 0
-                ? "bg-primary text-white hover:bg-primary/90 active:scale-[0.98]"
+                ? "bg-secondary text-white hover:bg-secondary/90 active:scale-[0.98]"
                 : "bg-gray-100 dark:bg-slate-800 text-gray-400 dark:text-slate-600 cursor-not-allowed"
             )}
           >

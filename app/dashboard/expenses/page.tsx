@@ -170,7 +170,7 @@ function IntExpenseTable({ allRows }: { allRows: IntermediateAnalysisResult["pag
           <p className="text-xs text-gray-400 dark:text-slate-500">Page {page + 1} of {totalPages}</p>
           <div className="flex gap-2">
             <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} className="px-3 py-1 rounded-lg border border-gray-200 dark:border-slate-700 text-xs text-gray-600 dark:text-slate-300 disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors">← Prev</button>
-            <button onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page === totalPages - 1} className="px-3 py-1 rounded-lg border border-gray-200 dark:border-slate-700 text-xs text-gray-600 dark:text-slate-300 disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors">Next →</button>
+            <button onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page === totalPages - 1} className="px-3 py-1 rounded-lg border border-gray-200 dark:border-blue-500/50 text-xs text-gray-600 dark:text-blue-400 disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-blue-500/10 transition-colors">Next →</button>
           </div>
         </div>
       )}
@@ -262,7 +262,7 @@ function AdvExpenseTable({ allRows }: { allRows: AdvancedAnalysisResult["page_5"
           <p className="text-xs text-gray-400 dark:text-slate-500">Page {page + 1} of {totalPages}</p>
           <div className="flex gap-2">
             <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} className="px-3 py-1 rounded-lg border border-gray-200 dark:border-slate-700 text-xs text-gray-600 dark:text-slate-300 disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors">← Prev</button>
-            <button onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page === totalPages - 1} className="px-3 py-1 rounded-lg border border-gray-200 dark:border-slate-700 text-xs text-gray-600 dark:text-slate-300 disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors">Next →</button>
+            <button onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page === totalPages - 1} className="px-3 py-1 rounded-lg border border-gray-200 dark:border-blue-500/50 text-xs text-gray-600 dark:text-blue-400 disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-blue-500/10 transition-colors">Next →</button>
           </div>
         </div>
       )}
@@ -281,9 +281,7 @@ function IntContent({ data }: { data: IntermediateAnalysisResult["page_4"] }): R
         <KpiCard label="Total Expenses"   value={formatNaira(kpis.total_expenses)}      tooltip="All money spent running your business in this period." />
         <KpiCard label="Operating Profit" value={formatNaira(kpis.operating_profit)}    tooltip="Gross profit minus all operating expenses." accent={kpis.operating_profit < 0 ? "red" : "green"} />
         <KpiCard label="Expense Share"    value={`${kpis.expense_share}%`}              tooltip="What percentage of your revenue went to expenses." />
-        <KpiCard label="Expense to Sales" value={`${kpis.expense_to_sales_ratio}%`}     tooltip="For every ₦100 of sales, this is how much went to expenses." />
         <KpiCard label="Monthly Average"  value={formatNaira(kpis.monthly_avg_expense)} tooltip="Average spend per month across the period." />
-        <KpiCard label="YTD Expenses"     value={formatNaira(kpis.ytd_expenses)}        tooltip="Total expenses recorded so far this year." />
         <KpiCard label="Profit Margin"    value={`${kpis.net_profit_margin}%`}          tooltip="Operating profit as a percentage of total revenue." accent={kpis.net_profit_margin < 0 ? "red" : "green"} />
       </div>
 
@@ -351,7 +349,6 @@ function AdvContent({ data }: { data: AdvancedAnalysisResult["page_5"] }): React
         <KpiCard label="Expense Share"    value={kpis.expense_share}            tooltip="What percentage of your revenue went to expenses." />
         <KpiCard label="Largest Category" value={kpis.largest_expense_category} tooltip="The type of expense that cost you the most." />
         <KpiCard label="Monthly Average"  value={kpis.monthly_avg_expense}      tooltip="Average spend per month across the period." />
-        <KpiCard label="YTD Expenses"     value={kpis.ytd_expenses}             tooltip="Total expenses recorded so far this year." />
         <KpiCard label="Transactions"     value={String(kpis.expense_transactions)} tooltip="Number of individual expense entries recorded." />
       </div>
 
@@ -477,7 +474,6 @@ export default function ExpensesPage(): React.ReactElement {
     const monthlyAvg = monthKeySet.size > 0 ? totalExpenses / monthKeySet.size : 0;
     const operatingProfit = salesTotal - totalExpenses;
     const expenseShare = salesTotal > 0 ? (totalExpenses / salesTotal) * 100 : 0;
-    const expenseToSales = salesTotal > 0 ? (totalExpenses / salesTotal) * 100 : 0;
     const profitMargin = salesTotal > 0 ? (operatingProfit / salesTotal) * 100 : 0;
 
     return {
@@ -486,11 +482,8 @@ export default function ExpensesPage(): React.ReactElement {
         ...intData.page_4.kpis,
         total_expenses: totalExpenses,
         operating_profit: operatingProfit,
-        net_profit: operatingProfit,
         expense_share: Number(expenseShare.toFixed(1)),
-        expense_to_sales_ratio: Number(expenseToSales.toFixed(1)),
         monthly_avg_expense: monthlyAvg,
-        ytd_expenses: totalExpenses,
         operating_profit_margin: Number(profitMargin.toFixed(1)),
         net_profit_margin: Number(profitMargin.toFixed(1)),
       },
@@ -546,7 +539,6 @@ export default function ExpensesPage(): React.ReactElement {
         expense_transactions: rows.length,
         largest_expense_category: largestCategory,
         monthly_avg_expense: formatNaira(monthlyAvg),
-        ytd_expenses: formatNaira(totalExpenses),
       },
       charts: {
         ...advData.page_5.charts,

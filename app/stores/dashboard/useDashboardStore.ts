@@ -29,6 +29,8 @@ interface DashboardState {
   setFilterPaneOpen: (open: boolean) => void;
   focusModeOpen: boolean;
   setFocusModeOpen: (open: boolean) => void;
+  focusedChartId: string | null;
+  setFocusedChartId: (id: string | null) => void;
 
   // ── Dev-mode tier switcher ─────────────────────────────────────────────────
   devTier: DashboardTier;
@@ -69,6 +71,8 @@ export const useDashboardStore = create<DashboardState>()(
       setFilterPaneOpen: (open) => set({ filterPaneOpen: open }),
       focusModeOpen: false,
       setFocusModeOpen: (open) => set({ focusModeOpen: open }),
+      focusedChartId: null,
+      setFocusedChartId: (id) => set({ focusedChartId: id }),
 
       devTier: "basic",
       setDevTier: (devTier) => set({ devTier }),

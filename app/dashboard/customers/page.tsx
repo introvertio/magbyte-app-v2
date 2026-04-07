@@ -75,7 +75,7 @@ function IntCustomerTable({ rows }: { rows: IntermediateAnalysisResult["page_3"]
           <p className="text-xs text-gray-400 dark:text-slate-500">Page {page+1} of {totalPages}</p>
           <div className="flex gap-2">
             <button disabled={page===0} onClick={()=>setPage(p=>p-1)} className="px-3 py-1.5 text-xs rounded-lg bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 disabled:opacity-40 hover:bg-gray-200 dark:hover:bg-slate-700 font-medium">Previous</button>
-            <button disabled={page===totalPages-1} onClick={()=>setPage(p=>p+1)} className="px-3 py-1.5 text-xs rounded-lg bg-primary text-white disabled:opacity-40 hover:opacity-90 font-medium">Next</button>
+            <button disabled={page===totalPages-1} onClick={()=>setPage(p=>p+1)} className="px-3 py-1.5 text-xs rounded-lg bg-primary dark:bg-secondary text-white disabled:opacity-40 hover:opacity-90 dark:hover:bg-secondary/90 font-medium">Next</button>
           </div>
         </div>
       )}
@@ -128,7 +128,7 @@ function AdvCustomerTable({ rows }: { rows: AdvancedAnalysisResult["page_3"]["cl
           <p className="text-xs text-gray-400 dark:text-slate-500">Page {page+1} of {totalPages}</p>
           <div className="flex gap-2">
             <button disabled={page===0} onClick={()=>setPage(p=>p-1)} className="px-3 py-1.5 text-xs rounded-lg bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 disabled:opacity-40 hover:bg-gray-200 dark:hover:bg-slate-700 font-medium">Previous</button>
-            <button disabled={page===totalPages-1} onClick={()=>setPage(p=>p+1)} className="px-3 py-1.5 text-xs rounded-lg bg-primary text-white disabled:opacity-40 hover:opacity-90 font-medium">Next</button>
+            <button disabled={page===totalPages-1} onClick={()=>setPage(p=>p+1)} className="px-3 py-1.5 text-xs rounded-lg bg-primary dark:bg-secondary text-white disabled:opacity-40 hover:opacity-90 dark:hover:bg-secondary/90 font-medium">Next</button>
           </div>
         </div>
       )}

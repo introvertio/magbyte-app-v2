@@ -42,7 +42,7 @@ function BasicProductTable({ filteredProducts, totalCount }: BasicProductTablePr
   const sortBtn = (key: typeof sortBy, label: string) => (
     <button onClick={() => { setSortBy(key); setPage(0); }}
       className={cn("px-2.5 py-1 rounded-full text-xs font-semibold transition-colors",
-        sortBy === key ? "bg-primary text-white shadow-sm" : "bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700")}>
+        sortBy === key ? "bg-primary dark:bg-secondary text-white shadow-sm dark:hover:bg-secondary/90" : "bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700")}>
       {label}
     </button>
   );
@@ -87,7 +87,7 @@ function BasicProductTable({ filteredProducts, totalCount }: BasicProductTablePr
           <p className="text-xs text-gray-400 dark:text-slate-500">Page {page+1} of {totalPages}</p>
           <div className="flex gap-2">
             <button disabled={page===0} onClick={() => setPage((p)=>p-1)} className="px-3 py-1.5 text-xs rounded-lg bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 disabled:opacity-40 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors font-medium">Previous</button>
-            <button disabled={page===totalPages-1} onClick={() => setPage((p)=>p+1)} className="px-3 py-1.5 text-xs rounded-lg bg-primary text-white disabled:opacity-40 hover:opacity-90 active:scale-[0.97] transition-all font-medium">Next</button>
+            <button disabled={page===totalPages-1} onClick={() => setPage((p)=>p+1)} className="px-3 py-1.5 text-xs rounded-lg bg-primary dark:bg-secondary text-white disabled:opacity-40 hover:opacity-90 dark:hover:bg-secondary/90 active:scale-[0.97] transition-all font-medium">Next</button>
           </div>
         </div>
       )}
@@ -547,7 +547,7 @@ function IntContent({ data }: { data: IntermediateAnalysisResult["page_2"] }): R
             <p className="text-xs text-gray-400 dark:text-slate-500">Page {page+1} of {totalPages}</p>
             <div className="flex gap-2">
               <button disabled={page===0} onClick={()=>setPage(p=>p-1)} className="px-3 py-1.5 text-xs rounded-lg bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 disabled:opacity-40 hover:bg-gray-200 dark:hover:bg-slate-700 font-medium">Previous</button>
-              <button disabled={page===totalPages-1} onClick={()=>setPage(p=>p+1)} className="px-3 py-1.5 text-xs rounded-lg bg-primary text-white disabled:opacity-40 hover:opacity-90 font-medium">Next</button>
+              <button disabled={page===totalPages-1} onClick={()=>setPage(p=>p+1)} className="px-3 py-1.5 text-xs rounded-lg bg-primary dark:bg-secondary text-white disabled:opacity-40 hover:opacity-90 dark:hover:bg-secondary/90 font-medium">Next</button>
             </div>
           </div>
         )}
@@ -652,7 +652,7 @@ function AdvContent({ data }: { data: AdvancedAnalysisResult["page_2"] }): React
             <p className="text-xs text-gray-400 dark:text-slate-500">Page {page+1} of {totalPages}</p>
             <div className="flex gap-2">
               <button disabled={page===0} onClick={()=>setPage(p=>p-1)} className="px-3 py-1.5 text-xs rounded-lg bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 disabled:opacity-40 hover:bg-gray-200 dark:hover:bg-slate-700 font-medium">Previous</button>
-              <button disabled={page===totalPages-1} onClick={()=>setPage(p=>p+1)} className="px-3 py-1.5 text-xs rounded-lg bg-primary text-white disabled:opacity-40 hover:opacity-90 font-medium">Next</button>
+              <button disabled={page===totalPages-1} onClick={()=>setPage(p=>p+1)} className="px-3 py-1.5 text-xs rounded-lg bg-primary dark:bg-secondary text-white disabled:opacity-40 hover:opacity-90 dark:hover:bg-secondary/90 font-medium">Next</button>
             </div>
           </div>
         )}

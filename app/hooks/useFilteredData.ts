@@ -42,8 +42,12 @@ import type {
  * Normalises a date string for comparison.
  * Handles "YYYY-MM" (monthly), "YYYY-MM-DD" (daily), and ISO datetimes.
  */
-export function toDate(dateStr: string): Date {
-  return dateStr.length === 7 ? new Date(`${dateStr}-01`) : new Date(dateStr);
+export function toDate(dateStr?: string | null): Date {
+  // Defensive guard: invalid/missing dates should not crash filters.
+  if (typeof dateStr !== "string") return new Date(Number.NaN);
+  const trimmed = dateStr.trim();
+  if (!trimmed) return new Date(Number.NaN);
+  return trimmed.length === 7 ? new Date(`${trimmed}-01`) : new Date(trimmed);
 }
 
 // ── Monthly trend filter (for Intermediate/Advanced pre-aggregated data) ──────

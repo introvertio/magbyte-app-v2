@@ -21,7 +21,7 @@ import { useGetProfile } from "@/app/components/hooks/user/useGetProfile";
 import { getGreeting, formatNaira, cn } from "@/lib/utils";
 import { CalendarIcon, CheckCircleIcon, ExclamationCircleIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import type { BasicAnalysisResult } from "@/app/types/basicAnalysis";
-import type { IntermediateAnalysisResult } from "@/app/types/intermediateAnalysis";
+import type { IntermediateAnalysisResult, ForecastMeta } from "@/app/types/intermediateAnalysis";
 import type { AdvancedAnalysisResult } from "@/app/types/advancedAnalysis";
 import type { IntForecastLinePoint, IntCategoryPrediction, IntTopItemForecast, IntSeasonalityPattern } from "@/app/types/intermediateAnalysis";
 import type { AdvForecastLinePoint, AdvCategoryPrediction, AdvSeasonalityPattern } from "@/app/types/advancedAnalysis";
@@ -155,7 +155,7 @@ function ForecastLineChart({ points, scale = 1 }: {
           <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
           <XAxis dataKey="date" tickFormatter={fmtAxisDate} tick={TICK} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={70} />
           <YAxis tickFormatter={(v) => formatNaira(v)} tick={TICK} axisLine={false} tickLine={false} width={64} />
-          <Tooltip content={<DashTooltip valueFormatter={formatNaira} labelFormatter={fmtAxisDate} />} />
+          <Tooltip content={<DashTooltip valueFormatter={formatNaira} labelFormatter={fmtAxisDate} payloadOrder={["upper", "forecast", "lower", "historical"]} />} />
           <Legend iconType="line" iconSize={10} wrapperStyle={{ fontSize: 10, color: "#6b7280" }} />
           {lastHistoricalDate && (
             <ReferenceLine
@@ -165,8 +165,8 @@ function ForecastLineChart({ points, scale = 1 }: {
               label={{ value: "Today", fontSize: 9, fill: "#94a3b8", position: "top" }}
             />
           )}
-          <Area type="monotone" dataKey="upper" fill={`url(#${GRAD.bandArea})`} stroke="transparent" legendType="none" />
-          <Area type="monotone" dataKey="lower" fill="#ffffff" stroke="transparent" legendType="none" />
+          <Area type="monotone" dataKey="upper" name="Upper" fill={`url(#${GRAD.bandArea})`} stroke="transparent" legendType="none" />
+          <Area type="monotone" dataKey="lower" name="Lower" fill="#ffffff" stroke="transparent" legendType="none" />
           <Line type="monotone" dataKey="historical" stroke={CHART_PRIMARY_VAR} strokeWidth={2.5} dot={false} name="Actual" connectNulls={false} activeDot={{ r: 5, fill: "var(--chart-primary)", stroke: "#fff", strokeWidth: 2 }} />
           <Line type="monotone" dataKey="forecast" stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 3" dot={false} name="Forecast" connectNulls={false} activeDot={{ r: 4, fill: "#f59e0b", stroke: "#fff", strokeWidth: 2 }} />
         </ComposedChart>
@@ -226,11 +226,51 @@ function MonthlySeasonalityChart({ seasonality }: { seasonality: IntSeasonalityP
   );
 }
 
+// ── Insufficient data gate ──────────────────────────────────────────────────
+
+function InsufficientDataGate({ meta }: { meta: ForecastMeta }): React.ReactElement {
+  const daysNeeded = meta.min_months_required * 30;
+  const daysRecorded = meta.months_of_data * 30;
+  const daysRemaining = Math.max(daysNeeded - daysRecorded, 0);
+
+  return (
+    <div className="flex flex-col items-center justify-center gap-6 py-16 px-6 text-center">
+      <div className="flex items-center justify-center size-16 rounded-full bg-amber-100 dark:bg-amber-950/50">
+        <CalendarIcon className="size-8 text-amber-500" />
+      </div>
+      <div className="max-w-md space-y-2">
+        <p className="text-lg font-bold text-gray-900 dark:text-slate-100">Not enough data yet</p>
+        <p className="text-sm text-gray-500 dark:text-slate-400 leading-relaxed">
+          You need at least <span className="font-semibold text-gray-700 dark:text-slate-300">{meta.min_months_required} months</span> of sales records for a reliable forecast.
+          Keep saving your daily transactions — you&apos;re{" "}
+          <span className="font-semibold text-amber-600 dark:text-amber-400">{daysRemaining} more days</span> away from unlocking full forecast insights.
+        </p>
+      </div>
+      <div className="w-full max-w-xs">
+        <div className="flex justify-between text-xs text-gray-400 dark:text-slate-500 mb-1.5">
+          <span>{meta.months_of_data} month{meta.months_of_data !== 1 ? "s" : ""} recorded</span>
+          <span>{meta.min_months_required} months needed</span>
+        </div>
+        <div className="h-2 bg-gray-100 dark:bg-slate-800 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-amber-400 dark:bg-amber-500 rounded-full transition-all duration-700"
+            style={{ width: `${Math.min((meta.months_of_data / meta.min_months_required) * 100, 100)}%` }}
+          />
+        </div>
+      </div>
+      <p className="text-xs text-gray-400 dark:text-slate-500 max-w-sm leading-relaxed">
+        Every sale you record today builds a more accurate picture of your business trends.
+      </p>
+    </div>
+  );
+}
+
 // ── Basic tier section ──────────────────────────────────────────────────────
 
 function BasicForecastContent({ data }: { data: BasicAnalysisResult["page_3"] }): React.ReactElement {
   const { kpis, charts, forecast_meta } = data;
-  const meta = forecast_meta as { confidence_note?: string };
+  const meta = forecast_meta as ForecastMeta;
+  if (!meta.sufficient_data) return <InsufficientDataGate meta={meta} />;
   return (
     <>
       <SectionHeader title="Key Numbers" />
@@ -238,7 +278,7 @@ function BasicForecastContent({ data }: { data: BasicAnalysisResult["page_3"] })
         <KpiCard label="Forecasted Sales (30d)"  value={formatNaira(kpis.forecasted_sales)}            tooltip="Expected revenue in the next 30 days." accent="blue" />
         <KpiCard label="Forecasted Profit (30d)" value={formatNaira(kpis.forecasted_profit)}           tooltip="Expected profit from that forecasted revenue." accent="blue" />
         <KpiCard label="Sales Growth Rate"       value={`${kpis.sales_growth_rate.toFixed(1)}%`}       tooltip="How fast monthly sales are growing." accent="blue" />
-        <KpiCard label="Forecast Confidence"     value={`${kpis.forecast_confidence.toFixed(0)}%`}     tooltip="How reliable the forecast is." sub={meta?.confidence_note ?? ""} accent="blue" />
+        <KpiCard label="Forecast Confidence"     value={`${kpis.forecast_confidence.toFixed(0)}%`}     tooltip="How reliable the forecast is." sub={meta.confidence_note} accent="blue" />
         <KpiCard label="Profit Margin"           value={`${(kpis.profit_margin * 100).toFixed(1)}%`}   tooltip="Out of every ₦100 in sales, how much you keep." accent="blue" />
       </div>
 
@@ -282,7 +322,8 @@ function BasicForecastContent({ data }: { data: BasicAnalysisResult["page_3"] })
 // ── Intermediate tier section ───────────────────────────────────────────────
 
 function IntermediateForecastContent({ data }: { data: IntermediateAnalysisResult["page_5"] }): React.ReactElement {
-  const { kpis, charts } = data;
+  const { kpis, charts, forecast_meta } = data;
+  if (!forecast_meta.sufficient_data) return <InsufficientDataGate meta={forecast_meta} />;
   return (
     <>
       <SectionHeader title="Key Numbers" />
@@ -320,7 +361,8 @@ function IntermediateForecastContent({ data }: { data: IntermediateAnalysisResul
 // ── Advanced tier section ───────────────────────────────────────────────────
 
 function AdvancedForecastContent({ data }: { data: AdvancedAnalysisResult["page_6"] }): React.ReactElement {
-  const { kpis, charts } = data;
+  const { kpis, charts, forecast_meta } = data;
+  if (!forecast_meta.sufficient_data) return <InsufficientDataGate meta={forecast_meta} />;
   return (
     <>
       <SectionHeader title="Key Numbers" />

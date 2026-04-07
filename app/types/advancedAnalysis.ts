@@ -233,7 +233,7 @@ export interface AdvPage6 {
     projected_profit_trend: unknown[];
     seasonality_pattern: AdvSeasonalityPattern;
   };
-  forecast_meta: unknown;
+  forecast_meta: import("./intermediateAnalysis").ForecastMeta;
 }
 
 // ── Root ───────────────────────────────────────────────────────────────────

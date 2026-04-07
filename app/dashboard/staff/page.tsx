@@ -110,9 +110,9 @@ function StaffLeaderboard(): React.ReactElement {
             <button
               onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
               disabled={page === totalPages - 1}
-              className="px-3 py-1 rounded-lg border border-gray-200 dark:border-slate-700 text-xs text-gray-600 dark:text-slate-300 disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
+              className="px-3 py-1 rounded-lg border border-gray-200 dark:border-blue-500/50 text-xs text-gray-600 dark:text-blue-400 disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-blue-500/10 transition-colors"
             >
-              Next →
+                Next →
             </button>
           </div>
         </div>
