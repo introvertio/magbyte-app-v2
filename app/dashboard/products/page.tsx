@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   ResponsiveContainer, BarChart, Bar, AreaChart, Area, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -15,6 +15,7 @@ import {
 } from "@/app/components/ui/dashboard/ChartUtils";
 import { EditableGreeting } from "@/app/components/ui/dashboard/EditableGreeting";
 import { useRegisterPageFilters } from "@/app/hooks/useRegisterPageFilters";
+import { useDashboardStore } from "@/app/stores/dashboard/useDashboardStore";
 import type { BasicAnalysisResult } from "@/app/types/basicAnalysis";
 import type { IntermediateAnalysisResult } from "@/app/types/intermediateAnalysis";
 import type { AdvancedAnalysisResult } from "@/app/types/advancedAnalysis";
@@ -206,7 +207,7 @@ function BasicContent(): React.ReactElement {
       .map(([category, sales]) => ({ category, sales }));
   }, [filteredProducts, hasContentFilter, category_performance]);
 
-  const displayKpis = useMemo(() => {
+  const liveDisplayKpis = useMemo(() => {
     if (!hasContentFilter) return kpis;
     const product_revenue = filteredProducts.reduce((s, p) => s + p.revenue, 0);
     const product_profit  = filteredProducts.reduce((s, p) => s + p.profit, 0);
@@ -215,6 +216,65 @@ function BasicContent(): React.ReactElement {
     const reorder_alerts  = filteredProducts.filter((p) => p.needs_reorder).length;
     return { product_revenue, product_profit, units_sold, current_profit_margin, reorder_alerts };
   }, [filteredProducts, hasContentFilter, kpis]);
+
+  // ── Focus mode — read Zustand so we know when focus opens ────────────────
+  const {
+    focusModeOpen,
+    filterYears, filterMonths, filterDaysOfWeek,
+    setFilterYears, setFilterMonths, setFilterDaysOfWeek,
+  } = useDashboardStore();
+
+  // Synchronous snapshot: captured at the exact render where focusModeOpen flips true.
+  // This freezes background KPIs, charts, and table while the focused chart stays live.
+  const frozenProductsRef        = useRef(filteredProducts);
+  const frozenTopDataRef         = useRef(topData);
+  const frozenCatDataRef         = useRef(catData);
+  const frozenKpisRef            = useRef(liveDisplayKpis);
+  // Freeze content filters + period filters so we can restore everything when focus closes.
+  // Without this, any filter changes inside focus mode bleed into the background on exit.
+  const frozenCategoryFiltersRef  = useRef(categoryFilters);
+  const frozenPaymentFiltersRef   = useRef(paymentFilters);
+  const frozenProductFiltersRef   = useRef(productFilters);
+  const frozenFilterYearsRef      = useRef(filterYears);
+  const frozenFilterMonthsRef     = useRef(filterMonths);
+  const frozenFilterDaysRef       = useRef(filterDaysOfWeek);
+  const prevFocusRef              = useRef(focusModeOpen);
+  const focusSessionRef           = useRef(false); // true while a focus session is active
+
+  if (focusModeOpen && !prevFocusRef.current) {
+    frozenProductsRef.current        = filteredProducts;
+    frozenTopDataRef.current         = topData;
+    frozenCatDataRef.current         = catData;
+    frozenKpisRef.current            = liveDisplayKpis;
+    frozenCategoryFiltersRef.current = [...categoryFilters];
+    frozenPaymentFiltersRef.current  = [...paymentFilters];
+    frozenProductFiltersRef.current  = [...productFilters];
+    frozenFilterYearsRef.current     = [...filterYears];
+    frozenFilterMonthsRef.current    = [...filterMonths];
+    frozenFilterDaysRef.current      = [...filterDaysOfWeek];
+    focusSessionRef.current          = true;
+  }
+  prevFocusRef.current = focusModeOpen;
+
+  // When focus mode closes, restore all filter state to pre-focus values.
+  // Discards any filters (content or period) the user applied inside the focused chart.
+  useEffect(() => {
+    if (!focusModeOpen && focusSessionRef.current) {
+      focusSessionRef.current = false;
+      setCategoryFilters(frozenCategoryFiltersRef.current);
+      setPaymentFilters(frozenPaymentFiltersRef.current);
+      setProductFilters(frozenProductFiltersRef.current);
+      setFilterYears(frozenFilterYearsRef.current);
+      setFilterMonths(frozenFilterMonthsRef.current);
+      setFilterDaysOfWeek(frozenFilterDaysRef.current);
+    }
+  }, [focusModeOpen, setFilterYears, setFilterMonths, setFilterDaysOfWeek]);
+
+  // Background always uses frozen data; focused chart uses live filteredProducts → topData/catData
+  const bgTopData   = focusModeOpen ? frozenTopDataRef.current  : topData;
+  const bgCatData   = focusModeOpen ? frozenCatDataRef.current  : catData;
+  const bgProducts  = focusModeOpen ? frozenProductsRef.current : filteredProducts;
+  const displayKpis = focusModeOpen ? frozenKpisRef.current     : liveDisplayKpis;
 
   return (
     <>
@@ -233,9 +293,23 @@ function BasicContent(): React.ReactElement {
           tooltip="Your top 10 earners. Blue bars = revenue, green bars = profit. A product with high revenue but small green bar means your margin is thin there."
           chartId="top_products"
           glowing={glowIds.has("top_products")}
+          focusable
+          focusContent={
+            <ResponsiveContainer width="100%" height={500}>
+              <BarChart data={topData} layout="vertical" margin={{top:0,right:24,left:0,bottom:0}}>
+                <GradDefs />
+                <XAxis type="number" tickFormatter={formatNaira} tick={TICK} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" tick={TICK} axisLine={false} tickLine={false} width={130} />
+                <Tooltip content={<DashTooltip valueFormatter={formatNaira} />} />
+                <Legend iconType="square" iconSize={8} wrapperStyle={{fontSize:10}} />
+                <Bar dataKey="revenue" name="Revenue" fill={`url(#${GRAD.blueH})`} radius={[0,4,4,0]} />
+                <Bar dataKey="profit"  name="Profit"  fill={`url(#${GRAD.greenH})`} radius={[0,4,4,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          }
         >
           <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={topData} layout="vertical" margin={{top:0,right:16,left:0,bottom:0}}>
+            <BarChart data={bgTopData} layout="vertical" margin={{top:0,right:16,left:0,bottom:0}}>
               <GradDefs />
               <XAxis type="number" tickFormatter={formatNaira} tick={TICK} axisLine={false} tickLine={false} />
               <YAxis type="category" dataKey="name" tick={TICK} axisLine={false} tickLine={false} width={114} />
@@ -252,9 +326,22 @@ function BasicContent(): React.ReactElement {
           tooltip="Which product groups made the most money overall. Longer bar = more total sales from that category."
           chartId="category_performance"
           glowing={glowIds.has("category_performance")}
+          focusable
+          focusContent={
+            <ResponsiveContainer width="100%" height={500}>
+              <BarChart data={catData} layout="vertical" margin={{top:0,right:24,left:0,bottom:0}}>
+                <GradDefs />
+                <XAxis type="number" tickFormatter={formatNaira} tick={TICK} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="category" tick={TICK} axisLine={false} tickLine={false} width={130} />
+                <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} horizontal={false} />
+                <Tooltip content={<DashTooltip valueFormatter={formatNaira} />} />
+                <Bar dataKey="sales" name="Sales" fill={`url(#${GRAD.blueH})`} radius={[0,4,4,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          }
         >
           <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={catData} layout="vertical" margin={{top:0,right:16,left:0,bottom:0}}>
+            <BarChart data={bgCatData} layout="vertical" margin={{top:0,right:16,left:0,bottom:0}}>
               <GradDefs />
               <XAxis type="number" tickFormatter={formatNaira} tick={TICK} axisLine={false} tickLine={false} />
               <YAxis type="category" dataKey="category" tick={TICK} axisLine={false} tickLine={false} width={114} />
@@ -265,7 +352,7 @@ function BasicContent(): React.ReactElement {
           </ResponsiveContainer>
         </ChartCard>
       </div>
-      <BasicProductTable filteredProducts={filteredProducts} totalCount={page_2.product_table.length} />
+      <BasicProductTable filteredProducts={bgProducts} totalCount={page_2.product_table.length} />
     </>
   );
 }

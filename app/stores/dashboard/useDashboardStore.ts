@@ -17,6 +17,9 @@ interface DashboardState {
   toggleFilterYear:      (year: number) => void;
   toggleFilterMonth:     (month: number) => void;
   toggleFilterDayOfWeek: (day: number) => void;
+  setFilterYears:        (years: number[]) => void;
+  setFilterMonths:       (months: number[]) => void;
+  setFilterDaysOfWeek:   (days: number[]) => void;
   clearFilters: () => void;
 
   // ── Layout ─────────────────────────────────────────────────────────────────
@@ -58,6 +61,9 @@ export const useDashboardStore = create<DashboardState>()(
       toggleFilterYear:      (year)  => set((s) => ({ filterYears:      toggle(s.filterYears,      year)  })),
       toggleFilterMonth:     (month) => set((s) => ({ filterMonths:     toggle(s.filterMonths,     month) })),
       toggleFilterDayOfWeek: (day)   => set((s) => ({ filterDaysOfWeek: toggle(s.filterDaysOfWeek, day)   })),
+      setFilterYears:        (years)  => set({ filterYears: years }),
+      setFilterMonths:       (months) => set({ filterMonths: months }),
+      setFilterDaysOfWeek:   (days)   => set({ filterDaysOfWeek: days }),
       clearFilters: () => set({ filterYears: [], filterMonths: [], filterDaysOfWeek: [] }),
 
       sideRailExpanded: true,

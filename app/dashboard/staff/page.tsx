@@ -191,24 +191,29 @@ export default function StaffPage(): React.ReactElement {
         {charts.branch_performance.length > 0 && (
           <div>
             <SectionHeader title="Revenue by Branch" />
-            <ChartCard title="Which location is generating the most" tooltip="Revenue contributed by each branch or location. Longer bar = more revenue from that location. Use this to see which store is your strongest performer.">
+            <ChartCard
+              title="Which location is generating the most"
+              tooltip="Revenue contributed by each branch or location. Longer bar = more revenue from that location. Use this to see which store is your strongest performer."
+              focusable
+              focusContent={
+                <ResponsiveContainer width="100%" height={500}>
+                  <BarChart data={charts.branch_performance} layout="vertical" margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
+                    <defs><GradDefs /></defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} horizontal={false} />
+                    <XAxis type="number" tick={TICK} tickLine={false} axisLine={false} />
+                    <YAxis type="category" dataKey="branch" tick={TICK} tickLine={false} axisLine={false} width={100} />
+                    <Tooltip content={<DashTooltip />} />
+                    <Bar dataKey="revenue" fill={`url(#${GRAD.blueH})`} radius={[0, 6, 6, 0]} name="Revenue" />
+                  </BarChart>
+                </ResponsiveContainer>
+              }
+            >
               <ResponsiveContainer width="100%" height={240}>
-                <BarChart
-                  data={charts.branch_performance}
-                  layout="vertical"
-                  margin={{ top: 4, right: 16, left: 0, bottom: 4 }}
-                >
+                <BarChart data={charts.branch_performance} layout="vertical" margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
                   <defs><GradDefs /></defs>
                   <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} horizontal={false} />
                   <XAxis type="number" tick={TICK} tickLine={false} axisLine={false} />
-                  <YAxis
-                    type="category"
-                    dataKey="branch"
-                    tick={TICK}
-                    tickLine={false}
-                    axisLine={false}
-                    width={90}
-                  />
+                  <YAxis type="category" dataKey="branch" tick={TICK} tickLine={false} axisLine={false} width={90} />
                   <Tooltip content={<DashTooltip />} />
                   <Bar dataKey="revenue" fill={`url(#${GRAD.blueH})`} radius={[0, 6, 6, 0]} name="Revenue" />
                 </BarChart>
@@ -220,24 +225,29 @@ export default function StaffPage(): React.ReactElement {
         {charts.staff_sales.length > 0 && (
           <div>
             <SectionHeader title="Revenue by Staff" />
-            <ChartCard title="Individual contribution to total sales (top 10)" tooltip="Shows how much revenue each of your top 10 staff members generated. Use this to reward your best performers and identify who may need support.">
+            <ChartCard
+              title="Individual contribution to total sales (top 10)"
+              tooltip="Shows how much revenue each of your top 10 staff members generated. Use this to reward your best performers and identify who may need support."
+              focusable
+              focusContent={
+                <ResponsiveContainer width="100%" height={500}>
+                  <BarChart data={charts.staff_sales.slice(0, 10)} layout="vertical" margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
+                    <defs><GradDefs /></defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} horizontal={false} />
+                    <XAxis type="number" tick={TICK} tickLine={false} axisLine={false} />
+                    <YAxis type="category" dataKey="staff_name" tick={TICK} tickLine={false} axisLine={false} width={75} />
+                    <Tooltip content={<DashTooltip />} />
+                    <Bar dataKey="revenue" fill={CHART_COLOURS.purple} radius={[0, 6, 6, 0]} name="Revenue" />
+                  </BarChart>
+                </ResponsiveContainer>
+              }
+            >
               <ResponsiveContainer width="100%" height={240}>
-                <BarChart
-                  data={charts.staff_sales.slice(0, 10)}
-                  layout="vertical"
-                  margin={{ top: 4, right: 16, left: 0, bottom: 4 }}
-                >
+                <BarChart data={charts.staff_sales.slice(0, 10)} layout="vertical" margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
                   <defs><GradDefs /></defs>
                   <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} horizontal={false} />
                   <XAxis type="number" tick={TICK} tickLine={false} axisLine={false} />
-                  <YAxis
-                    type="category"
-                    dataKey="staff_name"
-                    tick={TICK}
-                    tickLine={false}
-                    axisLine={false}
-                    width={65}
-                  />
+                  <YAxis type="category" dataKey="staff_name" tick={TICK} tickLine={false} axisLine={false} width={65} />
                   <Tooltip content={<DashTooltip />} />
                   <Bar dataKey="revenue" fill={CHART_COLOURS.purple} radius={[0, 6, 6, 0]} name="Revenue" />
                 </BarChart>

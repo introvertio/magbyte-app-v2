@@ -4,8 +4,8 @@ import QueryProvider from "./components/query/QueryProvider";
 import { ThemeApplier } from "./components/ThemeApplier";
 
 export const metadata: Metadata = {
-  title: "MagByte Analytics App",
-  description: "MagByte Analytics App",
+  title: "InView",
+  description: "InView by MagByte — business analytics for Nigerian SMEs.",
 };
 
 export default function RootLayout({

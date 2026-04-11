@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useRef, useEffect } from "react";
 import {
   ResponsiveContainer, BarChart, Bar, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -138,8 +138,9 @@ function AdvCustomerTable({ rows }: { rows: AdvancedAnalysisResult["page_3"]["cl
 
 // ── Tier content sections ─────────────────────────────────────────────────────
 
-function IntContent({ data }: { data: IntermediateAnalysisResult["page_3"] }): React.ReactElement {
-  const { kpis, charts, customer_detail_table } = data;
+function IntContent({ data, liveData }: { data: IntermediateAnalysisResult["page_3"]; liveData: IntermediateAnalysisResult["page_3"] }): React.ReactElement {
+  const { kpis, charts } = data;
+  const { charts: liveCharts } = liveData;
   return (
     <>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
@@ -154,7 +155,24 @@ function IntContent({ data }: { data: IntermediateAnalysisResult["page_3"] }): R
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
         {/* Monthly active customers */}
         {charts.monthly_active.length > 0 && (
-          <ChartCard title="How many customers shopped each month?" subtitle="Monthly Active Customers" tooltip="Tracks how many unique people bought from you each month. A growing line means your customer base is expanding.">
+          <ChartCard
+            title="How many customers shopped each month?"
+            subtitle="Monthly Active Customers"
+            tooltip="Tracks how many unique people bought from you each month. A growing line means your customer base is expanding."
+            focusable
+            focusContent={
+              <ResponsiveContainer width="100%" height={500}>
+                <AreaChart data={liveCharts.monthly_active} margin={{top:4,right:8,left:0,bottom:0}}>
+                  <GradDefs />
+                  <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
+                  <XAxis dataKey="month_short" tick={TICK} axisLine={false} tickLine={false} />
+                  <YAxis tick={TICK} axisLine={false} tickLine={false} />
+                  <Tooltip content={<DashTooltip />} />
+                  <Area type="monotone" dataKey="active_customers" name="Active Customers" stroke={CHART_PRIMARY_VAR} strokeWidth={2.5} fill={`url(#${GRAD.blueArea})`} dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            }
+          >
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={charts.monthly_active} margin={{top:4,right:8,left:0,bottom:0}}>
                 <GradDefs />
@@ -170,7 +188,24 @@ function IntContent({ data }: { data: IntermediateAnalysisResult["page_3"] }): R
 
         {/* Frequency distribution */}
         {charts.frequency_distribution.length > 0 && (
-          <ChartCard title="How often do customers buy from you?" subtitle="Purchase Frequency" tooltip="Groups customers by how many times they've shopped. Most stores have many one-time buyers — converting them into regulars is the goal.">
+          <ChartCard
+            title="How often do customers buy from you?"
+            subtitle="Purchase Frequency"
+            tooltip="Groups customers by how many times they've shopped. Most stores have many one-time buyers — converting them into regulars is the goal."
+            focusable
+            focusContent={
+              <ResponsiveContainer width="100%" height={500}>
+                <BarChart data={liveCharts.frequency_distribution} margin={{top:4,right:8,left:0,bottom:0}}>
+                  <GradDefs />
+                  <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
+                  <XAxis dataKey="bucket" tick={TICK} axisLine={false} tickLine={false} />
+                  <YAxis tick={TICK} axisLine={false} tickLine={false} />
+                  <Tooltip content={<DashTooltip />} />
+                  <Bar dataKey="customer_count" name="Customers" fill={`url(#${GRAD.blueV})`} radius={[6,6,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            }
+          >
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={charts.frequency_distribution} margin={{top:4,right:8,left:0,bottom:0}}>
                 <GradDefs />
@@ -186,7 +221,23 @@ function IntContent({ data }: { data: IntermediateAnalysisResult["page_3"] }): R
 
         {/* Top customers by spend */}
         {charts.customer_leaderboard.length > 0 && (
-          <ChartCard title="Who are your top spenders?" subtitle="Customer Leaderboard" tooltip="The customers who've spent the most with you overall. Consider offering them loyalty perks to keep them coming back.">
+          <ChartCard
+            title="Who are your top spenders?"
+            subtitle="Customer Leaderboard"
+            tooltip="The customers who've spent the most with you overall. Consider offering them loyalty perks to keep them coming back."
+            focusable
+            focusContent={
+              <ResponsiveContainer width="100%" height={500}>
+                <BarChart data={liveCharts.customer_leaderboard.slice(0,8)} layout="vertical" margin={{top:0,right:16,left:0,bottom:0}}>
+                  <GradDefs />
+                  <XAxis type="number" tickFormatter={formatNaira} tick={TICK} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="name" tick={TICK} axisLine={false} tickLine={false} width={110} />
+                  <Tooltip content={<DashTooltip valueFormatter={formatNaira} />} />
+                  <Bar dataKey="total_spent" name="Total Spent" fill={`url(#${GRAD.blueH})`} radius={[0,4,4,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            }
+          >
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={charts.customer_leaderboard.slice(0,8)} layout="vertical" margin={{top:0,right:16,left:0,bottom:0}}>
                 <GradDefs />
@@ -203,8 +254,9 @@ function IntContent({ data }: { data: IntermediateAnalysisResult["page_3"] }): R
   );
 }
 
-function AdvContent({ data }: { data: AdvancedAnalysisResult["page_3"] }): React.ReactElement {
-  const { kpis, charts, clv_leaderboard } = data;
+function AdvContent({ data, liveData }: { data: AdvancedAnalysisResult["page_3"]; liveData: AdvancedAnalysisResult["page_3"] }): React.ReactElement {
+  const { kpis, charts } = data;
+  const { charts: liveCharts } = liveData;
   return (
     <>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
@@ -221,7 +273,24 @@ function AdvContent({ data }: { data: AdvancedAnalysisResult["page_3"] }): React
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
         {/* Monthly active customers */}
         {charts.monthly_active.length > 0 && (
-          <ChartCard title="How many customers shopped each month?" subtitle="Monthly Active Customers" tooltip="Tracks how many unique people bought from you each month. A growing line means your customer base is expanding.">
+          <ChartCard
+            title="How many customers shopped each month?"
+            subtitle="Monthly Active Customers"
+            tooltip="Tracks how many unique people bought from you each month. A growing line means your customer base is expanding."
+            focusable
+            focusContent={
+              <ResponsiveContainer width="100%" height={500}>
+                <AreaChart data={liveCharts.monthly_active} margin={{top:4,right:8,left:0,bottom:0}}>
+                  <GradDefs />
+                  <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
+                  <XAxis dataKey="month_short" tick={TICK} axisLine={false} tickLine={false} />
+                  <YAxis tick={TICK} axisLine={false} tickLine={false} />
+                  <Tooltip content={<DashTooltip />} />
+                  <Area type="monotone" dataKey="active_customers" name="Active Customers" stroke={CHART_PRIMARY_VAR} strokeWidth={2.5} fill={`url(#${GRAD.blueArea})`} dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            }
+          >
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={charts.monthly_active} margin={{top:4,right:8,left:0,bottom:0}}>
                 <GradDefs />
@@ -237,7 +306,24 @@ function AdvContent({ data }: { data: AdvancedAnalysisResult["page_3"] }): React
 
         {/* Spending distribution */}
         {charts.spending_distribution.length > 0 && (
-          <ChartCard title="How much do your customers typically spend?" subtitle="Spending Distribution" tooltip="Groups customers by how much they've spent in total. If most people are in the low bucket, there's room to grow your average order value.">
+          <ChartCard
+            title="How much do your customers typically spend?"
+            subtitle="Spending Distribution"
+            tooltip="Groups customers by how much they've spent in total. If most people are in the low bucket, there's room to grow your average order value."
+            focusable
+            focusContent={
+              <ResponsiveContainer width="100%" height={500}>
+                <BarChart data={liveCharts.spending_distribution} margin={{top:4,right:8,left:0,bottom:0}}>
+                  <GradDefs />
+                  <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
+                  <XAxis dataKey="bucket" tick={TICK} axisLine={false} tickLine={false} />
+                  <YAxis tick={TICK} axisLine={false} tickLine={false} />
+                  <Tooltip content={<DashTooltip />} />
+                  <Bar dataKey="count" name="Customers" fill={`url(#${GRAD.blueV})`} radius={[6,6,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            }
+          >
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={charts.spending_distribution} margin={{top:4,right:8,left:0,bottom:0}}>
                 <GradDefs />
@@ -251,7 +337,7 @@ function AdvContent({ data }: { data: AdvancedAnalysisResult["page_3"] }): React
           </ChartCard>
         )}
 
-        {/* Customer ranking — ranked list (values are pre-formatted strings) */}
+        {/* Customer ranking — ranked list (values are pre-formatted strings; list doesn't benefit from focus) */}
         {charts.customer_ranking.length > 0 && (
           <ChartCard title="Who are your top spenders?" subtitle="Customer Ranking" tooltip="The customers who've spent the most with you overall. Consider offering them loyalty perks to keep them coming back.">
             <div className="flex flex-col gap-2 py-1">
@@ -281,7 +367,10 @@ export default function CustomersPage(): React.ReactElement {
   const { data: user } = useGetProfile();
   const tierData = useCustomersPageData();
   const metadata = useTierMetadata();
-  const { filterYears, filterMonths, filterDaysOfWeek } = useDashboardStore();
+  const {
+    filterYears, filterMonths, filterDaysOfWeek, focusModeOpen,
+    setFilterYears, setFilterMonths, setFilterDaysOfWeek,
+  } = useDashboardStore();
   const isFiltered = filterYears.length > 0 || filterMonths.length > 0 || filterDaysOfWeek.length > 0;
 
   const greeting = getGreeting();
@@ -382,6 +471,38 @@ export default function CustomersPage(): React.ReactElement {
     return { start: dates[0], end: dates[dates.length - 1], count: filteredIntermediateData.customer_detail_table.length };
   }, [filteredIntermediateData]);
 
+  // ── Focus mode freeze + period filter restore ──────────────────────────────
+  // Snapshot data + period filters at focus-open. On focus-close, restore them.
+  const frozenIntRef          = useRef(filteredIntermediateData);
+  const frozenAdvRef          = useRef(tierData?.data ?? null);
+  const frozenFilterYearsRef  = useRef(filterYears);
+  const frozenFilterMonthsRef = useRef(filterMonths);
+  const frozenFilterDaysRef   = useRef(filterDaysOfWeek);
+  const prevFocusRef          = useRef(focusModeOpen);
+  const focusSessionRef       = useRef(false);
+
+  if (focusModeOpen && !prevFocusRef.current) {
+    frozenIntRef.current          = filteredIntermediateData;
+    frozenAdvRef.current          = tierData?.data ?? null;
+    frozenFilterYearsRef.current  = [...filterYears];
+    frozenFilterMonthsRef.current = [...filterMonths];
+    frozenFilterDaysRef.current   = [...filterDaysOfWeek];
+    focusSessionRef.current       = true;
+  }
+  prevFocusRef.current = focusModeOpen;
+
+  useEffect(() => {
+    if (!focusModeOpen && focusSessionRef.current) {
+      focusSessionRef.current = false;
+      setFilterYears(frozenFilterYearsRef.current);
+      setFilterMonths(frozenFilterMonthsRef.current);
+      setFilterDaysOfWeek(frozenFilterDaysRef.current);
+    }
+  }, [focusModeOpen, setFilterYears, setFilterMonths, setFilterDaysOfWeek]);
+
+  const bgIntData = focusModeOpen ? frozenIntRef.current : filteredIntermediateData;
+  const bgAdvData = focusModeOpen ? frozenAdvRef.current : (tierData?.data ?? null);
+
   if (!tierData) {
     return (
       <div className="p-6 flex items-center justify-center h-64">
@@ -402,7 +523,7 @@ export default function CustomersPage(): React.ReactElement {
         </p>
       </div>
 
-      {isFiltered && tierData.tier === "advanced" && (
+      {!focusModeOpen && isFiltered && tierData.tier === "advanced" && (
         <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-100 dark:border-amber-800/50 text-xs text-amber-700 dark:text-amber-400 font-medium">
           <span className="size-1.5 rounded-full bg-amber-500 shrink-0" />
           Date filters currently apply fully on Intermediate customers data. Advanced customer metrics still use full dataset.
@@ -410,12 +531,21 @@ export default function CustomersPage(): React.ReactElement {
       )}
 
       <SectionHeader title="Key Numbers" />
-      {tierData.tier === "intermediate" && filteredIntermediateData && <IntContent data={filteredIntermediateData} />}
-      {tierData.tier === "advanced"     && <AdvContent data={tierData.data} />}
+      {tierData.tier === "intermediate" && bgIntData && filteredIntermediateData && (
+        <IntContent data={bgIntData} liveData={filteredIntermediateData} />
+      )}
+      {tierData.tier === "advanced" && bgAdvData && (
+        <AdvContent
+          data={bgAdvData as AdvancedAnalysisResult["page_3"]}
+          liveData={tierData.data as AdvancedAnalysisResult["page_3"]}
+        />
+      )}
 
       <SectionHeader title="Customer Directory" />
-      {tierData.tier === "intermediate" && filteredIntermediateData && <IntCustomerTable rows={filteredIntermediateData.customer_detail_table} />}
-      {tierData.tier === "advanced"     && <AdvCustomerTable rows={tierData.data.clv_leaderboard} />}
+      {tierData.tier === "intermediate" && bgIntData && <IntCustomerTable rows={bgIntData.customer_detail_table} />}
+      {tierData.tier === "advanced" && bgAdvData && (
+        <AdvCustomerTable rows={(bgAdvData as AdvancedAnalysisResult["page_3"]).clv_leaderboard} />
+      )}
     </div>
   );
 }

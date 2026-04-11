@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import {
   ResponsiveContainer,
   AreaChart, Area,
@@ -56,26 +56,69 @@ function parseCurrency(value: string): number {
 // ── Shared waterfall chart component ─────────────────────────────────────────
 // Renders the Operating Profit waterfall (Gross Profit → expenses → Op. Profit)
 
-function OperatingProfitWaterfall({
-  waterfall,
-  valueFmt,
-}: {
-  waterfall: WaterfallObj | unknown;
-  valueFmt: (v: number) => string;
-}): React.ReactElement | null {
-  const steps = (waterfall as WaterfallObj)?.steps;
-  if (!steps || steps.length === 0) return null;
-
-  const data = steps.map((s) => ({
+function buildWaterfallData(steps: WaterfallStep[]): Array<{ label: string; value: number; isNegative: boolean; type: string; raw: number }> {
+  return steps.map((s) => ({
     label:      s.label,
     value:      Math.abs(s.value),
     isNegative: s.value < 0,
     type:       s.type,
     raw:        s.value,
   }));
+}
+
+function WaterfallBars({ data, valueFmt }: { data: ReturnType<typeof buildWaterfallData>; valueFmt: (v: number) => string }): React.ReactElement {
+  return (
+    <BarChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+      <GradDefs />
+      <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
+      <XAxis dataKey="label" tick={TICK} axisLine={false} tickLine={false} />
+      <YAxis tickFormatter={valueFmt} tick={TICK} axisLine={false} tickLine={false} width={70} />
+      <Tooltip formatter={(v) => typeof v === "number" ? valueFmt(v) : String(v)} />
+      <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+        {data.map((entry, i) => (
+          <Cell
+            key={i}
+            fill={
+              entry.type === "start" ? "#001BB7" :
+              entry.type === "end"   ? (entry.raw < 0 ? "#ef4444" : "#10b981") :
+              "#ef4444"
+            }
+          />
+        ))}
+      </Bar>
+    </BarChart>
+  );
+}
+
+function OperatingProfitWaterfall({
+  waterfall,
+  liveWaterfall,
+  valueFmt,
+}: {
+  waterfall: WaterfallObj | unknown;
+  liveWaterfall?: WaterfallObj | unknown;
+  valueFmt: (v: number) => string;
+}): React.ReactElement | null {
+  const steps = (waterfall as WaterfallObj)?.steps;
+  if (!steps || steps.length === 0) return null;
+
+  const data     = buildWaterfallData(steps);
+  const liveSteps = (liveWaterfall as WaterfallObj)?.steps ?? steps;
+  const liveData  = buildWaterfallData(liveSteps);
 
   return (
-    <ChartCard title="Where did gross profit go?" subtitle="Operating Profit Waterfall" tooltip="Starts at gross profit and subtracts each operating cost one by one. The final bar is your operating profit — what the business truly earned after all expenses." className="col-span-full lg:col-span-2">
+    <ChartCard
+      title="Where did gross profit go?"
+      subtitle="Operating Profit Waterfall"
+      tooltip="Starts at gross profit and subtracts each operating cost one by one. The final bar is your operating profit — what the business truly earned after all expenses."
+      className="col-span-full lg:col-span-2"
+      focusable
+      focusContent={
+        <ResponsiveContainer width="100%" height={500}>
+          <WaterfallBars data={liveData} valueFmt={valueFmt} />
+        </ResponsiveContainer>
+      }
+    >
       <ResponsiveContainer width="100%" height={220}>
         <BarChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
           <GradDefs />
@@ -272,8 +315,10 @@ function AdvExpenseTable({ allRows }: { allRows: AdvancedAnalysisResult["page_5"
 
 // ── Tier content sections ─────────────────────────────────────────────────────
 
-function IntContent({ data }: { data: IntermediateAnalysisResult["page_4"] }): React.ReactElement {
+function IntContent({ data, liveData }: { data: IntermediateAnalysisResult["page_4"]; liveData: IntermediateAnalysisResult["page_4"] }): React.ReactElement {
   const { kpis, charts } = data;
+  const { charts: liveCharts } = liveData;
+  const xFmt = (v: string): string => { const d = new Date(v); return isNaN(d.getTime()) ? String(v).slice(0, 6) : d.toLocaleDateString("en", { month: "short", day: "numeric" }); };
   // Note: "Net Profit" and "Operating Profit" are the same value in this tier — only one is shown.
   return (
     <>
@@ -287,20 +332,29 @@ function IntContent({ data }: { data: IntermediateAnalysisResult["page_4"] }): R
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
         {charts.expense_trend.length > 0 && (
-          <ChartCard title="How your spending changed over time" subtitle="Expense Trend" tooltip="Shows how much you spent over time. A rising trend means costs are going up — watch this alongside your sales to make sure expenses don't outpace revenue.">
+          <ChartCard
+            title="How your spending changed over time"
+            subtitle="Expense Trend"
+            tooltip="Shows how much you spent over time. A rising trend means costs are going up — watch this alongside your sales to make sure expenses don't outpace revenue."
+            focusable
+            focusContent={
+              <ResponsiveContainer width="100%" height={500}>
+                <AreaChart data={liveCharts.expense_trend} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+                  <GradDefs />
+                  <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
+                  <XAxis dataKey="date_str" tick={TICK} tickLine={false} axisLine={false} tickFormatter={xFmt} interval="preserveStartEnd" />
+                  <YAxis tick={TICK} tickLine={false} axisLine={false} tickFormatter={(v: number) => formatNaira(v)} width={70} />
+                  <Tooltip content={<DashTooltip valueFormatter={(v) => formatNaira(v)} />} />
+                  <Area type="monotone" dataKey="expenses" fill={`url(#${GRAD.amberV})`} stroke="#d97706" strokeWidth={2} dot={false} name="Expenses" />
+                </AreaChart>
+              </ResponsiveContainer>
+            }
+          >
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={charts.expense_trend} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
                 <GradDefs />
                 <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
-                <XAxis
-                  dataKey="date_str"
-                  tick={TICK} tickLine={false} axisLine={false}
-                  tickFormatter={(v: string) => {
-                    const d = new Date(v);
-                    return isNaN(d.getTime()) ? String(v).slice(0, 6) : d.toLocaleDateString("en", { month: "short", day: "numeric" });
-                  }}
-                  interval="preserveStartEnd"
-                />
+                <XAxis dataKey="date_str" tick={TICK} tickLine={false} axisLine={false} tickFormatter={xFmt} interval="preserveStartEnd" />
                 <YAxis tick={TICK} tickLine={false} axisLine={false} tickFormatter={(v: number) => formatNaira(v)} width={70} />
                 <Tooltip content={<DashTooltip valueFormatter={(v) => formatNaira(v)} />} />
                 <Area type="monotone" dataKey="expenses" fill={`url(#${GRAD.amberV})`} stroke="#d97706" strokeWidth={2} dot={false} name="Expenses" />
@@ -310,7 +364,26 @@ function IntContent({ data }: { data: IntermediateAnalysisResult["page_4"] }): R
         )}
 
         {charts.expense_vs_sales.length > 0 && (
-          <ChartCard title="Are your expenses eating into your sales?" subtitle="Expenses vs Sales" tooltip="Bars = expenses per month. Line = sales. You want a big gap between them. If the bars start approaching the line, your profit margin is being squeezed.">
+          <ChartCard
+            title="Are your expenses eating into your sales?"
+            subtitle="Expenses vs Sales"
+            tooltip="Bars = expenses per month. Line = sales. You want a big gap between them. If the bars start approaching the line, your profit margin is being squeezed."
+            focusable
+            focusContent={
+              <ResponsiveContainer width="100%" height={500}>
+                <ComposedChart data={liveCharts.expense_vs_sales} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+                  <GradDefs />
+                  <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
+                  <XAxis dataKey="month_short" tick={TICK} axisLine={false} tickLine={false} />
+                  <YAxis tick={TICK} axisLine={false} tickLine={false} tickFormatter={(v: number) => formatNaira(v)} width={70} />
+                  <Tooltip content={<DashTooltip valueFormatter={(v) => formatNaira(v)} />} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar dataKey="expenses" name="Expenses" fill={`url(#${GRAD.amberV})`} radius={[4, 4, 0, 0]} />
+                  <Line type="monotone" dataKey="sales" name="Sales" stroke={CHART_PRIMARY_VAR} strokeWidth={2.5} dot={false} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            }
+          >
             <ResponsiveContainer width="100%" height={220}>
               <ComposedChart data={charts.expense_vs_sales} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
                 <GradDefs />
@@ -326,20 +399,24 @@ function IntContent({ data }: { data: IntermediateAnalysisResult["page_4"] }): R
           </ChartCard>
         )}
 
-        {/* Operating profit waterfall */}
-        <OperatingProfitWaterfall waterfall={charts.operating_profit_waterfall} valueFmt={formatNaira} />
+        {/* Operating profit waterfall — focusable, live data passed for focus chart */}
+        <OperatingProfitWaterfall waterfall={charts.operating_profit_waterfall} liveWaterfall={liveCharts.operating_profit_waterfall} valueFmt={formatNaira} />
       </div>
     </>
   );
 }
 
-function AdvContent({ data }: { data: AdvancedAnalysisResult["page_5"] }): React.ReactElement {
+function AdvContent({ data, liveData }: { data: AdvancedAnalysisResult["page_5"]; liveData: AdvancedAnalysisResult["page_5"] }): React.ReactElement {
   const { kpis, charts } = data;
+  const { charts: liveCharts } = liveData;
   // Advanced tier expense values are in millions (float)
   const fromM = (v: number): string => formatNaira(v * 1_000_000);
+  const xFmt = (v: string): string => { const d = new Date(v); return isNaN(d.getTime()) ? String(v).slice(0, 6) : d.toLocaleDateString("en", { month: "short", day: "numeric" }); };
 
   // Donut data for expense by category
   const DONUT_COLOURS = ["#001BB7","#2563eb","#60a5fa","#f59e0b","#ef4444","#10b981","#8b5cf6","#f97316"];
+  const catData     = (charts.expense_by_category as Array<{ category: string; amount: number }>).slice(0, 6);
+  const liveCatData = (liveCharts.expense_by_category as Array<{ category: string; amount: number }>).slice(0, 6);
 
   return (
     <>
@@ -354,20 +431,29 @@ function AdvContent({ data }: { data: AdvancedAnalysisResult["page_5"] }): React
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
         {charts.expense_trend.length > 0 && (
-          <ChartCard title="How your spending changed over time" subtitle="Expense Trend" tooltip="Shows how much you spent over time. A rising trend means costs are going up — watch this alongside your sales to make sure expenses don't outpace revenue.">
+          <ChartCard
+            title="How your spending changed over time"
+            subtitle="Expense Trend"
+            tooltip="Shows how much you spent over time. A rising trend means costs are going up — watch this alongside your sales to make sure expenses don't outpace revenue."
+            focusable
+            focusContent={
+              <ResponsiveContainer width="100%" height={500}>
+                <AreaChart data={liveCharts.expense_trend} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+                  <GradDefs />
+                  <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
+                  <XAxis dataKey="date_str" tick={TICK} tickLine={false} axisLine={false} tickFormatter={xFmt} interval="preserveStartEnd" />
+                  <YAxis tick={TICK} tickLine={false} axisLine={false} tickFormatter={(v: number) => fromM(v)} width={70} />
+                  <Tooltip content={<DashTooltip valueFormatter={(v) => fromM(v)} />} />
+                  <Area type="monotone" dataKey="expenses" fill={`url(#${GRAD.amberV})`} stroke="#d97706" strokeWidth={2} dot={false} name="Expenses" />
+                </AreaChart>
+              </ResponsiveContainer>
+            }
+          >
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={charts.expense_trend} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
                 <GradDefs />
                 <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
-                <XAxis
-                  dataKey="date_str"
-                  tick={TICK} tickLine={false} axisLine={false}
-                  tickFormatter={(v: string) => {
-                    const d = new Date(v);
-                    return isNaN(d.getTime()) ? String(v).slice(0, 6) : d.toLocaleDateString("en", { month: "short", day: "numeric" });
-                  }}
-                  interval="preserveStartEnd"
-                />
+                <XAxis dataKey="date_str" tick={TICK} tickLine={false} axisLine={false} tickFormatter={xFmt} interval="preserveStartEnd" />
                 <YAxis tick={TICK} tickLine={false} axisLine={false} tickFormatter={(v: number) => fromM(v)} width={70} />
                 <Tooltip content={<DashTooltip valueFormatter={(v) => fromM(v)} />} />
                 <Area type="monotone" dataKey="expenses" fill={`url(#${GRAD.amberV})`} stroke="#d97706" strokeWidth={2} dot={false} name="Expenses" />
@@ -377,7 +463,26 @@ function AdvContent({ data }: { data: AdvancedAnalysisResult["page_5"] }): React
         )}
 
         {charts.expense_vs_sales.length > 0 && (
-          <ChartCard title="Are your expenses eating into your sales?" subtitle="Expenses vs Sales" tooltip="Bars = expenses per month. Line = sales. You want a big gap between them. If the bars start approaching the line, your profit margin is being squeezed.">
+          <ChartCard
+            title="Are your expenses eating into your sales?"
+            subtitle="Expenses vs Sales"
+            tooltip="Bars = expenses per month. Line = sales. You want a big gap between them. If the bars start approaching the line, your profit margin is being squeezed."
+            focusable
+            focusContent={
+              <ResponsiveContainer width="100%" height={500}>
+                <ComposedChart data={liveCharts.expense_vs_sales} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+                  <GradDefs />
+                  <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
+                  <XAxis dataKey="month_short" tick={TICK} axisLine={false} tickLine={false} />
+                  <YAxis tick={TICK} axisLine={false} tickLine={false} tickFormatter={(v: number) => fromM(v)} width={70} />
+                  <Tooltip content={<DashTooltip valueFormatter={(v) => fromM(v)} />} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar dataKey="expenses" name="Expenses" fill={`url(#${GRAD.amberV})`} radius={[4, 4, 0, 0]} />
+                  <Line type="monotone" dataKey="sales" name="Sales" stroke={CHART_PRIMARY_VAR} strokeWidth={2.5} dot={false} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            }
+          >
             <ResponsiveContainer width="100%" height={220}>
               <ComposedChart data={charts.expense_vs_sales} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
                 <GradDefs />
@@ -393,29 +498,41 @@ function AdvContent({ data }: { data: AdvancedAnalysisResult["page_5"] }): React
           </ChartCard>
         )}
 
-        {/* Expense by category donut */}
-        {(charts.expense_by_category as Array<{ category: string; amount: number }>).length > 0 && (
-          <ChartCard title="Where is most of your money going?" subtitle="Expense by Category" tooltip="Breaks down your total expenses by category. The longest bar = your biggest cost area. Focus here first to reduce spending.">
+        {/* Expense by category */}
+        {catData.length > 0 && (
+          <ChartCard
+            title="Where is most of your money going?"
+            subtitle="Expense by Category"
+            tooltip="Breaks down your total expenses by category. The longest bar = your biggest cost area. Focus here first to reduce spending."
+            focusable
+            focusContent={
+              <ResponsiveContainer width="100%" height={500}>
+                <BarChart data={liveCatData} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
+                  <GradDefs />
+                  <XAxis type="number" tickFormatter={fromM} tick={TICK} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="category" tick={TICK} axisLine={false} tickLine={false} width={110} />
+                  <Tooltip content={<DashTooltip valueFormatter={fromM} />} />
+                  <Bar dataKey="amount" radius={[0, 4, 4, 0]}>
+                    {liveCatData.map((_e, i) => (<Cell key={i} fill={DONUT_COLOURS[i % DONUT_COLOURS.length]} />))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            }
+          >
             <div className="flex items-center gap-6">
               <ResponsiveContainer width={160} height={160}>
-                <BarChart
-                  data={(charts.expense_by_category as Array<{ category: string; amount: number }>).slice(0, 6)}
-                  layout="vertical"
-                  margin={{ top: 0, right: 8, left: 0, bottom: 0 }}
-                >
+                <BarChart data={catData} layout="vertical" margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
                   <GradDefs />
                   <XAxis type="number" tickFormatter={fromM} tick={TICK} axisLine={false} tickLine={false} />
                   <YAxis type="category" dataKey="category" tick={TICK} axisLine={false} tickLine={false} width={80} />
                   <Tooltip content={<DashTooltip valueFormatter={fromM} />} />
                   <Bar dataKey="amount" radius={[0, 4, 4, 0]}>
-                    {(charts.expense_by_category as Array<{ category: string; amount: number }>).slice(0, 6).map((_e, i) => (
-                      <Cell key={i} fill={DONUT_COLOURS[i % DONUT_COLOURS.length]} />
-                    ))}
+                    {catData.map((_e, i) => (<Cell key={i} fill={DONUT_COLOURS[i % DONUT_COLOURS.length]} />))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
               <div className="flex flex-col gap-2">
-                {(charts.expense_by_category as Array<{ category: string; amount: number }>).slice(0, 6).map((item, i) => (
+                {catData.map((item, i) => (
                   <div key={item.category} className="flex items-center gap-2 text-xs">
                     <span className="size-2.5 rounded-full shrink-0" style={{ backgroundColor: DONUT_COLOURS[i % DONUT_COLOURS.length] }} />
                     <span className="text-gray-600 dark:text-slate-300 truncate max-w-[120px]">{item.category}</span>
@@ -427,8 +544,8 @@ function AdvContent({ data }: { data: AdvancedAnalysisResult["page_5"] }): React
           </ChartCard>
         )}
 
-        {/* Operating profit waterfall */}
-        <OperatingProfitWaterfall waterfall={charts.operating_profit_waterfall} valueFmt={fromM} />
+        {/* Operating profit waterfall — focusable, live data passed for focus chart */}
+        <OperatingProfitWaterfall waterfall={charts.operating_profit_waterfall} liveWaterfall={liveCharts.operating_profit_waterfall} valueFmt={fromM} />
       </div>
     </>
   );
@@ -438,7 +555,10 @@ function AdvContent({ data }: { data: AdvancedAnalysisResult["page_5"] }): React
 
 export default function ExpensesPage(): React.ReactElement {
   const { data: user } = useGetProfile();
-  const { devTier, filterYears, filterMonths, filterDaysOfWeek } = useDashboardStore();
+  const {
+    devTier, filterYears, filterMonths, filterDaysOfWeek, focusModeOpen,
+    setFilterYears, setFilterMonths, setFilterDaysOfWeek,
+  } = useDashboardStore();
 
   const intData = useIntermediateAnalysis();
   const advData = useAdvancedAnalysis();
@@ -550,6 +670,39 @@ export default function ExpensesPage(): React.ReactElement {
     };
   }, [advData.page_5, filterYears, filterMonths, filterDaysOfWeek]);
 
+  // ── Focus mode freeze + period filter restore ──────────────────────────────
+  // Background KPIs + charts stay static; focused chart uses live (always-updating) data.
+  // When focus closes, period filters are restored to their pre-focus state.
+  const frozenIntRef          = useRef(filteredIntPage4);
+  const frozenAdvRef          = useRef(filteredAdvPage5);
+  const frozenFilterYearsRef  = useRef(filterYears);
+  const frozenFilterMonthsRef = useRef(filterMonths);
+  const frozenFilterDaysRef   = useRef(filterDaysOfWeek);
+  const prevFocusRef          = useRef(focusModeOpen);
+  const focusSessionRef       = useRef(false);
+
+  if (focusModeOpen && !prevFocusRef.current) {
+    frozenIntRef.current          = filteredIntPage4;
+    frozenAdvRef.current          = filteredAdvPage5;
+    frozenFilterYearsRef.current  = [...filterYears];
+    frozenFilterMonthsRef.current = [...filterMonths];
+    frozenFilterDaysRef.current   = [...filterDaysOfWeek];
+    focusSessionRef.current       = true;
+  }
+  prevFocusRef.current = focusModeOpen;
+
+  useEffect(() => {
+    if (!focusModeOpen && focusSessionRef.current) {
+      focusSessionRef.current = false;
+      setFilterYears(frozenFilterYearsRef.current);
+      setFilterMonths(frozenFilterMonthsRef.current);
+      setFilterDaysOfWeek(frozenFilterDaysRef.current);
+    }
+  }, [focusModeOpen, setFilterYears, setFilterMonths, setFilterDaysOfWeek]);
+
+  const bgIntData = focusModeOpen ? frozenIntRef.current : filteredIntPage4;
+  const bgAdvData = focusModeOpen ? frozenAdvRef.current : filteredAdvPage5;
+
   return (
     <div className="flex flex-col gap-6 p-6 max-w-7xl mx-auto w-full">
       <div>
@@ -558,7 +711,7 @@ export default function ExpensesPage(): React.ReactElement {
         <p className="text-sm text-gray-400 dark:text-slate-500 mt-0.5">Here is a full breakdown of your operating costs.</p>
       </div>
 
-      {isFiltered && (
+      {!focusModeOpen && isFiltered && (
         <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-800/50 text-xs text-blue-700 dark:text-blue-300 font-medium">
           <span className="size-1.5 rounded-full bg-blue-500 shrink-0" />
           Showing filtered expense data for selected period.
@@ -566,14 +719,14 @@ export default function ExpensesPage(): React.ReactElement {
       )}
 
       <SectionHeader title="Key Numbers" />
-      {devTier === "intermediate" && <IntContent data={filteredIntPage4} />}
-      {devTier === "advanced"     && <AdvContent data={filteredAdvPage5} />}
+      {devTier === "intermediate" && <IntContent data={bgIntData} liveData={filteredIntPage4} />}
+      {devTier === "advanced"     && <AdvContent data={bgAdvData} liveData={filteredAdvPage5} />}
 
       <div>
         <SectionHeader title="Expense Records" />
         {devTier === "advanced"
-          ? <AdvExpenseTable allRows={filteredAdvPage5.expense_detail_table} />
-          : <IntExpenseTable allRows={filteredIntPage4.expense_detail_table} />}
+          ? <AdvExpenseTable allRows={bgAdvData.expense_detail_table} />
+          : <IntExpenseTable allRows={bgIntData.expense_detail_table} />}
       </div>
     </div>
   );

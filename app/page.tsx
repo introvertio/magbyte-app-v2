@@ -58,9 +58,9 @@ export default function Home(): React.ReactElement {
         {/* Logo */}
         <div>
           <img
-            src="/MagByteLogo.png"
-            alt="MagByte"
-            className="h-9 w-auto object-contain brightness-0 invert"
+            src="/InViewLogoWhiteFull.svg"
+            alt="InView by MagByte"
+            className="h-10 w-auto object-contain"
           />
         </div>
 
@@ -70,7 +70,7 @@ export default function Home(): React.ReactElement {
             Own your business<br />decision system.
           </h1>
           <p className="text-white/50 text-base leading-relaxed mb-10 max-w-sm">
-            MagByte gives small business owners a powerful analytics dashboard
+            InView gives small business owners a powerful analytics dashboard
             — no analyst needed.
           </p>
 
@@ -103,15 +103,20 @@ export default function Home(): React.ReactElement {
           {/* Mobile logo */}
           <div className="lg:hidden mb-8 flex justify-center">
             <img
-              src="/MagByteLogo.png"
-              alt="MagByte"
-              className="h-8 w-auto object-contain dark:brightness-0 dark:invert"
+              src="/InViewLogoFull.svg"
+              alt="InView by MagByte"
+              className="h-10 w-auto object-contain dark:hidden"
+            />
+            <img
+              src="/InViewLogoWhiteFull.svg"
+              alt="InView by MagByte"
+              className="h-10 w-auto object-contain hidden dark:block"
             />
           </div>
 
           <h2 className="text-2xl font-bold text-gray-900 dark:text-slate-100 mb-1">Welcome back</h2>
           <p className="text-sm text-gray-500 dark:text-slate-400 mb-8">
-            Sign in to your MagByte dashboard.
+            Sign in to your InView dashboard.
           </p>
 
           <button
@@ -136,7 +141,7 @@ export default function Home(): React.ReactElement {
           )}
 
           <p className="text-center text-xs text-gray-400 dark:text-slate-600 mt-6">
-            By continuing, you agree to MagByte&apos;s terms and privacy policy.
+            By continuing, you agree to InView&apos;s terms and privacy policy.
           </p>
 
           {/* Dev shortcuts */}

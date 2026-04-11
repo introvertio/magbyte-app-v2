@@ -119,9 +119,9 @@ export default function TopBar(): React.ReactElement {
           </button>
           <Link href="/dashboard" className="active:scale-95 transition-transform">
             <img
-              src="/MagByteLogo.png"
-              alt="MagByte"
-              className="h-7 w-auto object-contain brightness-0 invert"
+              src="/InViewLogoWhite.svg"
+              alt="InView by MagByte"
+              className="h-7 w-auto object-contain"
             />
           </Link>
         </div>

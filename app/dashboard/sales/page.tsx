@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useRef, useEffect } from "react";
 import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, LabelList, Legend,
@@ -20,7 +20,7 @@ import { XMarkIcon } from "@heroicons/react/24/outline";
 import { useRegisterPageFilters } from "@/app/hooks/useRegisterPageFilters";
 import type { IntermediateAnalysisResult } from "@/app/types/intermediateAnalysis";
 import type { AdvancedAnalysisResult } from "@/app/types/advancedAnalysis";
-import type { BasicAnalysisResult } from "@/app/types/basicAnalysis";
+import type { BasicAnalysisResult, DetailRow } from "@/app/types/basicAnalysis";
 
 // ── Profit/Operating waterfall types ─────────────────────────────────────────
 
@@ -102,22 +102,27 @@ interface BasicDetailTableProps {
   categoryFilters: string[];
   paymentFilters: string[];
   productFilters: string[];
+  /** When provided (focus mode), skip live hook + filtering and use these rows directly. */
+  overrideRows?: DetailRow[];
 }
 
-function BasicDetailTable({ categoryFilters, paymentFilters, productFilters }: BasicDetailTableProps): React.ReactElement {
+function BasicDetailTable({ categoryFilters, paymentFilters, productFilters, overrideRows }: BasicDetailTableProps): React.ReactElement {
   const { page_1 } = useFilteredData();
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 15;
-  // Sort rows by date descending; then apply chart-level + FilterPane filters
+  // When overrideRows is set (focus mode), use frozen rows. Otherwise derive live.
   const rows = useMemo(() => {
+    if (overrideRows !== undefined) {
+      return [...overrideRows].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }
     let r = [...page_1.detail_table].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     if (categoryFilters.length > 0) r = r.filter((row) => categoryFilters.includes(row.category));
     if (paymentFilters.length > 0)  r = r.filter((row) => paymentFilters.includes(row.payment_method));
     if (productFilters.length > 0)  r = r.filter((row) => productFilters.includes(row.product));
     return r;
-  }, [page_1.detail_table, categoryFilters, paymentFilters, productFilters]);
+  }, [page_1.detail_table, categoryFilters, paymentFilters, productFilters, overrideRows]);
   // Reset to page 0 whenever filters change
-  React.useEffect(() => { setPage(0); }, [categoryFilters, paymentFilters, productFilters]);
+  React.useEffect(() => { setPage(0); }, [categoryFilters, paymentFilters, productFilters, overrideRows]);
   const totalPages = Math.ceil(rows.length / PAGE_SIZE);
   const slice = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   return (
@@ -173,7 +178,11 @@ function BasicContent({ data, rawData }: { data: BasicAnalysisResult["page_1"]; 
   const { kpis, charts } = data;
   const metadata = useTierMetadata();
   const { page_1 } = useFilteredData();
-  const { focusModeOpen } = useDashboardStore();
+  const {
+    focusModeOpen,
+    filterYears, filterMonths, filterDaysOfWeek,
+    setFilterYears, setFilterMonths, setFilterDaysOfWeek,
+  } = useDashboardStore();
 
   // ── Chart-as-filter state — multi-select arrays (chart click + FilterPane both drive these) ────
   const [categoryFilters, setCategoryFilters] = useState<string[]>([]);
@@ -253,7 +262,8 @@ function BasicContent({ data, rawData }: { data: BasicAnalysisResult["page_1"]; 
 
   const hasContentFilter = categoryFilters.length > 0 || paymentFilters.length > 0 || productFilters.length > 0;
 
-  const displayKpis = useMemo(() => {
+  // Live KPIs — derive from content-filtered rows when a content filter is active.
+  const liveDisplayKpis = useMemo(() => {
     if (!hasContentFilter) return kpis;
     const totalSales = filteredRows.reduce((sum, row) => sum + row.total_sales_auto, 0);
     const totalProfit = filteredRows.reduce((sum, row) => sum + row.profit_auto, 0);
@@ -272,6 +282,51 @@ function BasicContent({ data, rawData }: { data: BasicAnalysisResult["page_1"]; 
       transfer_rate: totalTransactions > 0 ? transferCount / totalTransactions : 0,
     };
   }, [filteredRows, hasContentFilter, kpis]);
+
+  // ── Focus mode freeze + filter restore ────────────────────────────────────
+  // Snapshot rows, KPIs, and all filter state the instant focus opens.
+  // The focused chart reads live data; everything else is frozen.
+  // When focus closes, ALL filters are restored to their pre-focus values.
+  const frozenRowsRef              = useRef<DetailRow[]>(filteredRows);
+  const frozenKpisRef              = useRef(liveDisplayKpis);
+  const frozenCategoryFiltersRef   = useRef(categoryFilters);
+  const frozenPaymentFiltersRef    = useRef(paymentFilters);
+  const frozenProductFiltersRef    = useRef(productFilters);
+  const frozenFilterYearsRef       = useRef(filterYears);
+  const frozenFilterMonthsRef      = useRef(filterMonths);
+  const frozenFilterDaysRef        = useRef(filterDaysOfWeek);
+  const prevFocusRef               = useRef(focusModeOpen);
+  const focusSessionRef            = useRef(false);
+
+  if (focusModeOpen && !prevFocusRef.current) {
+    frozenRowsRef.current            = filteredRows;
+    frozenKpisRef.current            = liveDisplayKpis;
+    frozenCategoryFiltersRef.current = [...categoryFilters];
+    frozenPaymentFiltersRef.current  = [...paymentFilters];
+    frozenProductFiltersRef.current  = [...productFilters];
+    frozenFilterYearsRef.current     = [...filterYears];
+    frozenFilterMonthsRef.current    = [...filterMonths];
+    frozenFilterDaysRef.current      = [...filterDaysOfWeek];
+    focusSessionRef.current          = true;
+  }
+  prevFocusRef.current = focusModeOpen;
+
+  useEffect(() => {
+    if (!focusModeOpen && focusSessionRef.current) {
+      focusSessionRef.current = false;
+      setCategoryFilters(frozenCategoryFiltersRef.current);
+      setPaymentFilters(frozenPaymentFiltersRef.current);
+      setProductFilters(frozenProductFiltersRef.current);
+      setFilterYears(frozenFilterYearsRef.current);
+      setFilterMonths(frozenFilterMonthsRef.current);
+      setFilterDaysOfWeek(frozenFilterDaysRef.current);
+    }
+  }, [focusModeOpen, setFilterYears, setFilterMonths, setFilterDaysOfWeek]);
+
+  /** Rows used by the background (table, KPIs) — frozen while a chart is focused. */
+  const rowsForBackground = focusModeOpen ? frozenRowsRef.current : filteredRows;
+  /** KPIs shown on the background page — frozen while a chart is focused. */
+  const displayKpis       = focusModeOpen ? frozenKpisRef.current  : liveDisplayKpis;
 
   // ── Monthly sales trend — always derive from already date-filtered rows ─
   const monthlySales = useMemo(() => {
@@ -336,7 +391,7 @@ function BasicContent({ data, rawData }: { data: BasicAnalysisResult["page_1"]; 
         <KpiCard label="Transfer Rate" value={`${(displayKpis.transfer_rate * 100).toFixed(0)}%`} tooltip="Share of customers who paid by bank transfer." />
       </div>
 
-      <ChartFilterBadges filters={activeFilters} onClearAll={clearAll} />
+      {!focusModeOpen && <ChartFilterBadges filters={activeFilters} onClearAll={clearAll} />}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-2">
         {/* Sales trend — aggregated monthly totals */}
@@ -465,7 +520,7 @@ function BasicContent({ data, rawData }: { data: BasicAnalysisResult["page_1"]; 
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-          {categoryFilters.length > 0 && (
+          {!focusModeOpen && categoryFilters.length > 0 && (
             <p className="text-[10px] text-primary dark:text-blue-400 font-semibold mt-1 px-1">
               Showing: {categoryFilters.join(", ")} · <button onClick={() => setCategoryFilters([])} className="underline underline-offset-1">clear</button>
             </p>
@@ -561,14 +616,19 @@ function BasicContent({ data, rawData }: { data: BasicAnalysisResult["page_1"]; 
               ))}
             </div>
           </div>
-          {paymentFilters.length > 0 && (
+          {!focusModeOpen && paymentFilters.length > 0 && (
             <p className="text-[10px] text-primary dark:text-blue-400 font-semibold mt-1 px-1">
               Showing: {paymentFilters.join(", ")} · <button onClick={() => setPaymentFilters([])} className="underline underline-offset-1">clear</button>
             </p>
           )}
         </ChartCard>
       </div>
-      <BasicDetailTable categoryFilters={categoryFilters} paymentFilters={paymentFilters} productFilters={productFilters} />
+      <BasicDetailTable
+        categoryFilters={categoryFilters}
+        paymentFilters={paymentFilters}
+        productFilters={productFilters}
+        overrideRows={focusModeOpen ? rowsForBackground : undefined}
+      />
     </>
   );
 }
@@ -963,11 +1023,22 @@ export default function SalesOverviewPage(): React.ReactElement {
   const metadata = useTierMetadata();
   const filteredData = useFilteredData();
   const { filteredCount, isFiltered } = filteredData;
+  const { focusModeOpen } = useDashboardStore();
 
   const greeting = getGreeting();
   const firstName = user?.first_name ?? "there";
   const fmtDate = (iso: string | null) =>
     iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "";
+
+  // Freeze header metadata while a chart is in focus so the date range and
+  // record count in the header stay static.
+  const frozenMetaRef = useRef(filteredData.metadata);
+  const prevFocusPageRef = useRef(focusModeOpen);
+  if (focusModeOpen && !prevFocusPageRef.current) {
+    frozenMetaRef.current = filteredData.metadata;
+  }
+  prevFocusPageRef.current = focusModeOpen;
+  const displayMeta = focusModeOpen ? frozenMetaRef.current : filteredData.metadata;
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
@@ -977,13 +1048,13 @@ export default function SalesOverviewPage(): React.ReactElement {
         <div className="flex items-center gap-2 mt-1">
           <CalendarIcon className="size-3.5 text-gray-400 dark:text-slate-500" />
           <p className="text-sm text-gray-400 dark:text-slate-500">
-            {fmtDate(filteredData.metadata.date_range.start)} – {fmtDate(filteredData.metadata.date_range.end)}
-            {" · "}{filteredData.metadata.record_count} transactions
+            {fmtDate(displayMeta.date_range.start)} – {fmtDate(displayMeta.date_range.end)}
+            {" · "}{displayMeta.record_count} transactions
           </p>
         </div>
       </div>
 
-      {isFiltered && tierData.tier === "basic" && <FilterNotice count={filteredCount} />}
+      {!focusModeOpen && isFiltered && tierData.tier === "basic" && <FilterNotice count={filteredCount} />}
 
       <SectionHeader title="Key Numbers" />
       {tierData.tier === "basic"        && <BasicContent data={filteredData.page_1} rawData={basicRaw.page_1} />}

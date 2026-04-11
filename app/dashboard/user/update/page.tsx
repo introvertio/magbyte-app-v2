@@ -45,9 +45,9 @@ function LeftPanel({ current, bizName }: { current: StepNum; bizName: string }):
         <div className="mb-10">
           <Link href="/">
             <img
-              src="/MagByteLogo.png"
-              alt="MagByte"
-              className="h-8 w-auto object-contain brightness-0 invert opacity-90 hover:opacity-100 transition-opacity"
+              src="/InViewLogoWhite.svg"
+              alt="InView by MagByte"
+              className="h-8 w-auto object-contain opacity-90 hover:opacity-100 transition-opacity"
             />
           </Link>
         </div>
