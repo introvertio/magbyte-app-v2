@@ -80,17 +80,101 @@
 - `CustomersPage` adds freeze refs; type casts added for `AdvancedAnalysisResult["page_3"]` union narrowing.
 - Amber filter notice hidden while focus is open.
 
-## Still pending
+## Still pending (frontend polish)
 - **Regenerate mock JSON** — run Int + Adv Python scripts to get confidence bands in browser.
 - Fix filter-restore on focus exit for **Sales page** (same `focusSessionRef` + `useEffect` pattern as Products — sales has category/payment/product local filters too).
 - Fix filter-restore on focus exit for **Expenses + Customers** (currently only data is frozen; filters applied inside focus persist on exit).
 - Chart-as-filter completion: Products Basic category bar, Products Int, Customers, Expenses charts.
 - Staff true period filtering requires date-bearing staff payload fields (backend/data-shape).
-- Delete `app/components/ui/dashboard/PageFilterBar.tsx` (unused).
 - Signal `chart_refs` — Int + Adv signals still need `chart_refs` populated.
-- **Intermediate layout/chart fixes** — user request: bring Int-tier chart layouts and visual quality up to Basic tier standard (deferred to next session).
+- **Intermediate layout/chart fixes** — bring Int-tier chart layouts and visual quality up to Basic tier standard.
 
-## Quick verify checklist (`http://localhost:3302`)
+---
+
+## Backend / API integration (session 4)
+
+### Architecture — confirmed from magbyte-micro code + meeting transcript
+
+```
+Frontend → Django API (mag-byte-api.vercel.app/api)
+               └→ [Django proxies OR frontend calls directly]
+                       └→ FastAPI micro (magbyte-micro on Vercel)
+                               └→ n8n webhook → analysis script → exec script
+                                       └→ { n8n_extract, analysis_result,
+                                            executive_summary_result, forecast_log }
+```
+
+- **n8n**: yearly plan now active — pipeline is live and ready to use.
+- **magbyte-micro** (`/Users/macbook/Desktop/MagByte/magbyte-micro`): built, deployed on Vercel.
+  - Single endpoint: `POST /upload?GEX=<token>` — accepts `file` (multipart) or `link` (query param).
+  - GEX token for Retail Basic: `"#%RTB"` (not `"#%RT"` — earlier docs were wrong).
+  - Processing is **synchronous** — 5–7 s (file) / 3.5 s (link). No polling needed.
+  - Response shape: `{ n8n_extract, analysis_result, executive_summary_result, forecast_log }`.
+  - `analysis_result` matches mock JSON exactly (`page_1`, `page_2`, `page_3`, `metadata`).
+  - `executive_summary_result` matches `ExecutiveSummaryResult` type.
+  - CORS in `main.py` allows `magbyte-app-v2.vercel.app` — suggests **frontend calls micro directly**, not through Django.
+- **Database**: Supabase (PostgreSQL). Django models: User, Analyzed Data, Executive Summary Data, Forecast Log.
+- **Django backend** (`mag-byte-api.vercel.app/api`) — existing endpoints wired in frontend:
+  - `GET  /auth/google/login/`
+  - `GET  /auth/google/oauth-callback/`
+  - `GET  /auth/validate/`
+  - `GET  /user/get`
+  - `PATCH /user/update`
+
+### Industry → GEX mapping (from magbyte-micro)
+| Industry | Basic | Intermediate | Advanced |
+|---|---|---|---|
+| Retail & Provisions | `#%RTB` | `#%RTBI` (not yet built) | `#%RTBO` (not yet built) |
+| Others | TBD | TBD | TBD |
+
+### Confirmed architecture (session 5)
+- **magbyte-micro URL**: `https://magbyte-micro.vercel.app` (confirmed live).
+- **Direct call**: frontend calls micro directly — CORS in `main.py` confirms this.
+- **No separate analysis endpoint**: all data (`analyzed_data`, `executive_summary`, `forecast_logs`) is stored on `api_userprofile` as JSONB columns. `GET /user/get` returns profile + analysis. No `GET /analysis/get` needed.
+- **No `tier` field**: infer from `business_industry`. Tier is set by n8n from sheet count.
+- **Micro does NOT save to Django** — it returns results; frontend must `PATCH /user/update` with the data.
+
+### Supabase schema (`api_userprofile` — the only app table)
+| Column | Type | Notes |
+|---|---|---|
+| `analyzed_data` | jsonb | keys: `page_1`, `page_2`, `page_3`, `metadata`, `anomalies` |
+| `executive_summary` | jsonb | keys: `plays`, `charts`, `signals`, `ai_brief`, `metadata`, `comparison`, `vital_signs`, `data_quality`, `health_score`, `period_filter`, `forecast_insight` |
+| `forecast_logs` | jsonb array | |
+| `data` | jsonb array | raw transaction rows from upload |
+| `business_industry` | varchar | used to infer tier |
+
+`executive_summary` has two extra keys vs our type: `data_quality` + `period_filter` — not causing errors (extra keys are ignored).
+
+### Implemented onboarding flow
+```
+Login (Google OAuth) → JWT → localStorage
+  └─ new_user = true  → /dashboard/user/update (onboarding)
+       Step 1: business name + phone
+       Step 2: industry
+       Step 3: file or Google Sheets link
+                └→ PATCH /user/update  (save profile)
+                └→ POST magbyte-micro/upload?GEX=#%RTB
+                └→ "Analysing your data…" (5–7 s wait)
+                └→ PATCH /user/update  (save analysis_result, executive_summary, forecast_log)
+                └→ redirect /dashboard
+  └─ new_user = false → /dashboard
+       └─ analyzed_data present → real data via useGetProfile
+       └─ analyzed_data null    → "No data yet" holding page → link back to onboarding
+```
+
+### What is still blocked / pending
+1. **Django OAuth redirect** — after Google login, Django redirects to `magbyte-app.vercel.app` (old app). Must update Django `ALLOWED_REDIRECT_URIS` to the new Vercel domain before real users can log in on the new app.
+2. **`NEXT_PUBLIC_DEV_BYPASS_AUTH=false`** in Vercel — must set before any real user testing.
+3. **Confirm `GET /user/get` response shape** — we know the DB columns; need to verify Django serialiser actually returns `analyzed_data` + `executive_summary` in the response. First real login will confirm this.
+4. **Int/Adv upload** — GEX tokens `#%RTBI` / `#%RTBO` not yet built in magbyte-micro. Intermediate/Advanced data still uses mock.
+
+## Quick verify checklist (session 5 additions — `http://localhost:3302`)
+- Onboarding Step 3: select file → "Upload & analyse →" button becomes active. Clicking it shows "Analysing your data…" disabled state.
+- Onboarding: if micro call fails, error message appears; Back button is disabled during upload.
+- Cockpit (`NEXT_PUBLIC_DEV_BYPASS_AUTH=false`): visiting `/dashboard` without uploaded data shows "No data yet" holding page with link to onboarding.
+- Cockpit (with bypass on): dashboard loads normally from mock data as before.
+
+## Quick verify checklist (prior sessions — `http://localhost:3302`)
 - Sales Basic: period + content filters update KPIs/charts/table together.
 - FilterPane dark mode: hover text remains readable.
 - Focus mode: pane no longer leaves top-right gap.

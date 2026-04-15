@@ -1,6 +1,8 @@
 import axios from "axios";
 import { API_BASE_URL } from "../api-url";
 import { USER_ENDPOINTS } from "./user-urls";
+import type { BasicAnalysisResult } from "@/app/types/basicAnalysis";
+import type { ExecutiveSummaryResult } from "@/app/types/executiveSummary";
 
 export interface UserProfileResponse {
   first_name: string;
@@ -11,6 +13,11 @@ export interface UserProfileResponse {
   phone: string;
   business_name: string;
   business_industry: string;
+  // Analysis data — null until the user has uploaded their data
+  analyzed_data: BasicAnalysisResult | null;
+  executive_summary: ExecutiveSummaryResult | null;
+  forecast_logs: unknown[] | null;
+  data: unknown[] | null;
 }
 export interface UserProfileNotFoundError {
   error: string;

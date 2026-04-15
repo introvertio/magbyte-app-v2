@@ -3,8 +3,10 @@
 import React, { useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useUpdateProfile } from "@/app/components/hooks/user/useUpdateProfile";
 import { useGetProfile } from "@/app/components/hooks/user/useGetProfile";
+import { useTokenStore } from "@/app/components/stores/auth/useTokenStore";
+import { updateUserProfile } from "@/lib/api/user/update-profile";
+import { uploadAndAnalyse } from "@/lib/api/analysis/upload";
 import { cn } from "@/lib/utils";
 import { CheckCircleIcon, LockClosedIcon } from "@heroicons/react/24/solid";
 import { CloudArrowUpIcon, DocumentIcon, XMarkIcon, LinkIcon } from "@heroicons/react/24/outline";
@@ -106,12 +108,17 @@ function LeftPanel({ current, bizName }: { current: StepNum; bizName: string }):
 
 // ── Upload step ──────────────────────────────────────────────────────────────
 
+interface UploadPayload {
+  file?: File;
+  sheetsUrl?: string;
+}
+
 interface UploadStepProps {
   industry: string;
   onBack: () => void;
-  onComplete: () => void;
+  onComplete: (payload: UploadPayload) => void;
   isPending: boolean;
-  isError: boolean;
+  errorMessage: string | null;
 }
 
 type UploadMode = "file" | "sheets";
@@ -128,7 +135,7 @@ function isValidSheetsUrl(url: string): boolean {
   }
 }
 
-function UploadStep({ industry, onBack, onComplete, isPending, isError }: UploadStepProps): React.ReactElement {
+function UploadStep({ industry, onBack, onComplete, isPending, errorMessage }: UploadStepProps): React.ReactElement {
   const [mode, setMode]           = useState<UploadMode>("file");
   const [file, setFile]           = useState<File | null>(null);
   const [dragging, setDragging]   = useState(false);
@@ -288,21 +295,22 @@ function UploadStep({ industry, onBack, onComplete, isPending, isError }: Upload
         </div>
       )}
 
-      {isError && (
+      {errorMessage && (
         <p className="text-xs text-red-500 font-medium">
-          Something went wrong — please try again.
+          {errorMessage}
         </p>
       )}
 
       <div className="flex gap-3 mt-auto pt-2">
         <button
           onClick={onBack}
-          className="px-5 py-3 rounded-xl border border-gray-200 dark:border-slate-700 text-sm font-semibold text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
+          disabled={isPending}
+          className="px-5 py-3 rounded-xl border border-gray-200 dark:border-slate-700 text-sm font-semibold text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           ← Back
         </button>
         <button
-          onClick={onComplete}
+          onClick={() => onComplete(mode === "sheets" ? { sheetsUrl } : { file: file ?? undefined })}
           disabled={!canSubmit || isPending}
           className="flex-1 py-3 rounded-xl bg-primary text-white text-sm font-semibold hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
         >
@@ -321,14 +329,16 @@ function UploadStep({ industry, onBack, onComplete, isPending, isError }: Upload
 // ── Main page ────────────────────────────────────────────────────────────────
 
 export default function UpdateUserPage(): React.ReactElement {
-  const router = useRouter();
-  const { data: user }                 = useGetProfile();
-  const { mutate, isPending, isError } = useUpdateProfile();
+  const router   = useRouter();
+  const token    = useTokenStore((state) => state.token);
+  const { data: user } = useGetProfile();
 
-  const [step, setStep]         = useState<StepNum>(1);
-  const [bizName, setBizName]   = useState("");
-  const [phone, setPhone]       = useState("");
-  const [industry, setIndustry] = useState<string>("");
+  const [step, setStep]               = useState<StepNum>(1);
+  const [bizName, setBizName]         = useState("");
+  const [phone, setPhone]             = useState("");
+  const [industry, setIndustry]       = useState<string>("");
+  const [uploadPending, setUploadPending] = useState(false);
+  const [uploadError, setUploadError]     = useState<string | null>(null);
 
   function handleStep1(): void {
     if (!bizName.trim()) return;
@@ -340,12 +350,35 @@ export default function UpdateUserPage(): React.ReactElement {
     setStep(3);
   }
 
-  function handleSubmit(): void {
-    if (isPending) return;
-    mutate(
-      { business_name: bizName.trim(), phone: phone.trim(), business_industry: industry },
-      { onSuccess: () => router.replace("/dashboard") },
-    );
+  // Three-step flow:
+  // 1. Save business profile to Django
+  // 2. POST file/link to magbyte-micro → get analysis result (5–7 s)
+  // 3. Save analysis result back to Django
+  async function handleSubmit(payload: UploadPayload): Promise<void> {
+    if (uploadPending || !token) return;
+    setUploadError(null);
+    setUploadPending(true);
+    try {
+      await updateUserProfile(token, {
+        business_name: bizName.trim(),
+        phone: phone.trim(),
+        business_industry: industry,
+      });
+
+      const result = await uploadAndAnalyse({ ...payload, industry });
+
+      await updateUserProfile(token, {
+        analyzed_data: result.analysis_result,
+        executive_summary: result.executive_summary_result,
+        forecast_logs: Array.isArray(result.forecast_log) ? result.forecast_log : [],
+      });
+
+      router.replace("/dashboard");
+    } catch {
+      setUploadError("Something went wrong — please try again.");
+    } finally {
+      setUploadPending(false);
+    }
   }
 
   const stepLabel = `Step ${step} of 3`;
@@ -493,8 +526,8 @@ export default function UpdateUserPage(): React.ReactElement {
                 industry={industry}
                 onBack={() => setStep(2)}
                 onComplete={handleSubmit}
-                isPending={isPending}
-                isError={isError}
+                isPending={uploadPending}
+                errorMessage={uploadError}
               />
             )}
 

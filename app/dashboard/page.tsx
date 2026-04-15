@@ -19,7 +19,7 @@ import {
   Line,
 } from "recharts";
 import { useGetProfile } from "@/app/components/hooks/user/useGetProfile";
-import { useExecutiveSummaryData } from "@/app/hooks/useDashboardData";
+import { useExecutiveSummaryData, useHasAnalysisData } from "@/app/hooks/useDashboardData";
 import { useDashboardStore } from "@/app/stores/dashboard/useDashboardStore";
 import { getGreeting, formatNaira, cn } from "@/lib/utils";
 import type {
@@ -660,12 +660,39 @@ function DataQualityBanner({ pctClean, issueCount }: { pctClean: number; issueCo
 // ── Main Page ───────────────────────────────────────────────────────────────
 
 export default function CockpitPage(): React.ReactElement {
-  const { data: user } = useGetProfile();
+  const { data: user, isLoading: profileLoading } = useGetProfile();
+  const hasData = useHasAnalysisData();
   const summary = useExecutiveSummaryData();
   const { filterYears, filterMonths, filterDaysOfWeek } = useDashboardStore();
   const isFiltered = filterYears.length > 0 || filterMonths.length > 0 || filterDaysOfWeek.length > 0;
 
   const firstName = user?.first_name ?? "there";
+
+  // Show a holding page for real users who haven't uploaded data yet.
+  // While the profile is still loading we show nothing to avoid flash.
+  if (!profileLoading && !hasData) {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center gap-6 p-8 text-center">
+        <div className="size-16 rounded-2xl bg-primary/10 dark:bg-blue-950/40 flex items-center justify-center">
+          <ChartBarIcon className="size-8 text-primary dark:text-blue-400" />
+        </div>
+        <div className="space-y-2 max-w-sm">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-slate-100">
+            No data yet
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-slate-400 leading-relaxed">
+            Upload your sales records to see your dashboard. It only takes a few seconds to analyse.
+          </p>
+        </div>
+        <Link
+          href="/dashboard/user/update"
+          className="px-6 py-3 rounded-xl bg-primary text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+        >
+          Upload your data →
+        </Link>
+      </div>
+    );
+  }
   const greeting = getGreeting();
   const { health_score, vital_signs, signals, charts, plays, data_quality, forecast_insight } = summary;
 
